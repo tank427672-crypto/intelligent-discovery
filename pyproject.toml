@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligent-discovery"
-version = "0.7.0"
+version = "0.8.0"
 description = "An extensible, evidence-led AI knowledge discovery ecosystem."
 requires-python = ">=3.11"
 readme = "README.md"
@@ -34,6 +34,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"intelligent_discovery/observability.py" = ["E501"]
 
 [tool.setuptools.packages.find]
 include = ["intelligent_discovery*"]
