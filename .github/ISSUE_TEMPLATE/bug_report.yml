@@ -1,0 +1,21 @@
+name: Bug report
+description: Report reproducible behavior that conflicts with the documented system.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Reproduction steps
+      description: Do not include secrets or personal data.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Evidence and environment
+    validations:
+      required: true

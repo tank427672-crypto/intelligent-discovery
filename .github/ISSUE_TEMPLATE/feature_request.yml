@@ -1,0 +1,20 @@
+name: Capability proposal
+description: Propose a user problem and an evolvable capability, not just an implementation.
+title: "proposal: "
+labels: [proposal]
+body:
+  - type: textarea
+    attributes:
+      label: User problem and expected value
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Evidence, data, privacy, and misuse risks
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed module boundary and non-goals
+    validations:
+      required: true
