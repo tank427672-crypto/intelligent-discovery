@@ -37,6 +37,7 @@ select = ["E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "intelligent_discovery/observability.py" = ["E501"]
+"intelligent_discovery/response.py" = ["E501"]
 
 [tool.setuptools.packages.find]
 include = ["intelligent_discovery*"]
