@@ -106,11 +106,17 @@ class ResponseService:
             self.store.save_action(action)
         return action
 
+    def evaluate(self, evaluation: ResponseEvaluation) -> ResponseEvaluation:
+        if self.store:
+            self.store.save_evaluation(evaluation)
+        return evaluation
+
 
 class ResponseStore(Protocol):
     def save_incident(self, value: ResponseIncident) -> None: ...
     def update_incident_status(self, incident_id: str, new: IncidentStatus) -> None: ...
     def save_action(self, value: ResponseAction) -> None: ...
+    def save_evaluation(self, value: ResponseEvaluation) -> None: ...
 
 
 class SQLiteResponseAdapter:
@@ -120,6 +126,9 @@ class SQLiteResponseAdapter:
         with self.connect() as c:
             c.executescript(
                 "CREATE TABLE IF NOT EXISTS response_incidents (id TEXT PRIMARY KEY,title TEXT,severity TEXT,status TEXT); CREATE TABLE IF NOT EXISTS response_actions (id TEXT PRIMARY KEY,incident_id TEXT,type TEXT,description TEXT,result TEXT,created TEXT);"
+            )
+            c.execute(
+                "CREATE TABLE IF NOT EXISTS response_evaluations (id TEXT PRIMARY KEY,response_id TEXT,before_state TEXT,after_state TEXT,effectiveness REAL,review TEXT)"
             )
 
     def connect(self):
@@ -138,4 +147,11 @@ class SQLiteResponseAdapter:
             c.execute(
                 "INSERT INTO response_actions VALUES (?,?,?,?,?,?)",
                 (v.id, v.incident_id, v.action_type, v.description, v.result, v.created_at.isoformat()),
+            )
+
+    def save_evaluation(self, v: ResponseEvaluation) -> None:
+        with self.connect() as c:
+            c.execute(
+                "INSERT INTO response_evaluations VALUES (?,?,?,?,?,?)",
+                (v.id, v.response_id, v.before_state, v.after_state, v.effectiveness, v.review),
             )

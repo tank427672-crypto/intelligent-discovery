@@ -28,7 +28,15 @@ from .domain import (
     SourceType,
     TrustLevel,
 )
+from .evolution import EvolutionCandidate, EvolutionService, SQLiteEvolutionAdapter
 from .repository import SQLiteRepository
+from .response import (
+    IncidentStatus,
+    ResponseActionType,
+    ResponseIncident,
+    ResponseService,
+    SQLiteResponseAdapter,
+)
 from .services import (
     CaseService,
     DiscoveryIntelligenceService,
@@ -44,6 +52,8 @@ case_service = CaseService(service.repository)
 graph_service = KnowledgeGraphService(service.repository)
 discovery_intelligence = DiscoveryIntelligenceService(service.repository)
 renderer = ReportRenderer()
+response_service = ResponseService(SQLiteResponseAdapter("data/response.db"))
+evolution_service = EvolutionService(SQLiteEvolutionAdapter("data/evolution.db"))
 app = FastAPI(
     title="Intelligent Discovery", version="0.5.0", description="Evidence-led discovery and decision support."
 )
@@ -189,6 +199,32 @@ class SearchFeedbackInput(BaseModel):
     comment: str = Field(default="", max_length=2000)
 
 
+class ResponseIncidentInput(BaseModel):
+    title: str = Field(min_length=1)
+    severity: str = Field(min_length=1)
+
+
+class ResponseActionInput(BaseModel):
+    action_type: ResponseActionType
+    description: str = Field(min_length=1)
+
+
+class ResponseEvaluationInput(BaseModel):
+    before_state: str
+    after_state: str
+    effectiveness: float = Field(ge=0, le=1)
+    review: str
+
+
+class EvolutionCandidateInput(BaseModel):
+    source_incident: str
+    problem_summary: str
+    impact: float = Field(ge=0)
+    frequency: int = Field(ge=1)
+    severity: float = Field(ge=0)
+    suggested_change: str
+
+
 def serialize(value: object) -> dict[str, object]:
     data = asdict(value)
     return {
@@ -209,6 +245,29 @@ def translate(action):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": "0.5.0"}
+
+
+@app.post("/response/incidents", status_code=status.HTTP_201_CREATED)
+def create_response_incident(payload: ResponseIncidentInput) -> dict[str, object]:
+    return serialize(response_service.create_incident(ResponseIncident(payload.title, payload.severity)))
+
+
+@app.post("/response/incidents/{incident_id}/{next_status}")
+def transition_response_incident(incident_id: str, next_status: IncidentStatus) -> dict[str, str]:
+    return {"incident_id": incident_id, "status": response_service.transition(IncidentStatus.DETECTED, next_status)}
+
+
+@app.post("/evolution/candidates", status_code=status.HTTP_201_CREATED)
+def create_evolution_candidate(payload: EvolutionCandidateInput) -> dict[str, object]:
+    c = EvolutionCandidate.prioritized(
+        payload.source_incident,
+        payload.problem_summary,
+        payload.impact,
+        payload.frequency,
+        payload.severity,
+        payload.suggested_change,
+    )
+    return serialize(evolution_service.trigger(c, payload.impact >= 0.8))
 
 
 @app.post("/tasks", status_code=status.HTTP_201_CREATED)

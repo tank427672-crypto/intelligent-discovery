@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
@@ -64,6 +65,12 @@ class EvolutionService:
             raise ValueError("approval requires verified experiment and human approval")
         if next_status == EvolutionStatus.RELEASED and c.status != EvolutionStatus.APPROVED:
             raise ValueError("release requires approval")
+        if (
+            next_status == EvolutionStatus.RELEASED
+            and self.store
+            and self.store.recent_release_exists(self.cooldown_days)
+        ):
+            raise ValueError("release blocked by evolution cooldown")
         c.status = next_status
         if self.store:
             self.store.save(c)
@@ -111,4 +118,9 @@ class SQLiteEvolutionAdapter:
             )
 
     def recent_release_exists(self, cooldown_days: int) -> bool:
-        return False
+        with self.connect() as c:
+            row = c.execute(
+                "SELECT created FROM evolution_candidates WHERE status = ? ORDER BY created DESC LIMIT 1",
+                (EvolutionStatus.RELEASED,),
+            ).fetchone()
+        return bool(row and datetime.fromisoformat(row[0]) >= now() - timedelta(days=cooldown_days))
