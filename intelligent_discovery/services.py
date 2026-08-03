@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .domain import (
+    AccessPolicy,
     CaseLifecycleStatus,
     CaseRecord,
     CaseRevision,
@@ -11,6 +12,7 @@ from .domain import (
     Category,
     Classification,
     Concept,
+    DataRequest,
     DataVisibility,
     DiscoveryTask,
     Evidence,
@@ -35,6 +37,8 @@ from .domain import (
     ReviewRecord,
     SearchFeedback,
     SearchQuery,
+    ShareRequest,
+    ShareRequestStatus,
     Source,
     SourceStatus,
     SourceType,
@@ -42,6 +46,7 @@ from .domain import (
     Tag,
     TaskStatus,
     TrustLevel,
+    User,
     VisibilityRecord,
     utc_now,
 )
@@ -593,3 +598,48 @@ class TrustGovernanceService:
             raise ValueError("experiments must start in planned status")
         self.repository.save_experiment(experiment)
         return experiment
+
+
+class IdentityLocalNetworkService:
+    """Identity and rights records; no authentication or automatic publication is implemented."""
+
+    def __init__(self, repository: DiscoveryRepository) -> None:
+        self.repository = repository
+
+    def create_user(self, user: User) -> User:
+        if not user.name.strip():
+            raise ValueError("user name is required")
+        self.repository.save_user(user)
+        return user
+
+    def grant(self, policy: AccessPolicy) -> AccessPolicy:
+        if not self.repository.get_user(policy.subject_id):
+            raise ValueError("policy subject must be an existing user")
+        if not self.repository.entity_exists(policy.resource_type, policy.resource_id):
+            raise ValueError("policy resource must exist")
+        self.repository.save_access_policy(policy)
+        return policy
+
+    def request_share(self, request: ShareRequest) -> ShareRequest:
+        if not self.repository.get_user(request.owner_id):
+            raise ValueError("share owner must be an existing user")
+        if not self.repository.entity_exists(request.object_type, request.object_id):
+            raise ValueError("shared object must exist")
+        if request.target_visibility == DataVisibility.PRIVATE:
+            raise ValueError("share target must be shared or public")
+        self.repository.save_share_request(request)
+        return request
+
+    def approve_share(self, request_id: str) -> ShareRequest:
+        request = self.repository.get_share_request(request_id)
+        if not request or request.status != ShareRequestStatus.REQUESTED:
+            raise ValueError("only requested shares can be approved")
+        request.status = ShareRequestStatus.APPROVED
+        self.repository.save_share_request(request)
+        return request
+
+    def request_data_right(self, request: DataRequest) -> DataRequest:
+        if not self.repository.get_user(request.owner_id):
+            raise ValueError("data request owner must be an existing user")
+        self.repository.save_data_request(request)
+        return request

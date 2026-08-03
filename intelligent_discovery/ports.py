@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import Protocol
 
 from .domain import (
+    AccessPolicy,
     CaseRecord,
     CaseRevision,
     CaseTaskLink,
     Category,
     Classification,
     Concept,
+    DataRequest,
     DiscoveryTask,
     Evidence,
     EvolutionExperiment,
@@ -21,15 +23,18 @@ from .domain import (
     GraphNodeType,
     ImprovementProposal,
     KnowledgeRecord,
+    PublicationRecord,
     RecommendationRecord,
     ReflectionRecord,
     Relationship,
     ReviewRecord,
     SearchFeedback,
     SearchQuery,
+    ShareRequest,
     Source,
     SystemFeedback,
     Tag,
+    User,
     VisibilityRecord,
 )
 
@@ -83,3 +88,11 @@ class DiscoveryRepository(Protocol):
     def save_improvement(self, proposal: ImprovementProposal) -> None: ...
     def get_improvement(self, proposal_id: str) -> ImprovementProposal | None: ...
     def save_experiment(self, experiment: EvolutionExperiment) -> None: ...
+    def save_user(self, user: User) -> None: ...
+    def get_user(self, user_id: str) -> User | None: ...
+    def save_access_policy(self, policy: AccessPolicy) -> None: ...
+    def list_access_policies(self, subject_id: str) -> list[AccessPolicy]: ...
+    def save_share_request(self, request: ShareRequest) -> None: ...
+    def get_share_request(self, request_id: str) -> ShareRequest | None: ...
+    def save_publication(self, record: PublicationRecord) -> None: ...
+    def save_data_request(self, request: DataRequest) -> None: ...

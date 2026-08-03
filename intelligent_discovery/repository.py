@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .domain import (
+    AccessPolicy,
     CaseLifecycleStatus,
     CaseRecord,
     CaseRevision,
@@ -18,6 +19,7 @@ from .domain import (
     ClassificationStatus,
     Concept,
     DataLifecycleStatus,
+    DataRequest,
     DataVisibility,
     DiscoveryTask,
     Evidence,
@@ -34,6 +36,8 @@ from .domain import (
     ImprovementProposal,
     ImprovementStatus,
     KnowledgeRecord,
+    PermissionName,
+    PublicationRecord,
     RecommendationRecord,
     ReflectionRecord,
     ReflectionStatus,
@@ -42,6 +46,8 @@ from .domain import (
     ReviewRecord,
     SearchFeedback,
     SearchQuery,
+    ShareRequest,
+    ShareRequestStatus,
     Source,
     SourceStatus,
     SourceType,
@@ -49,6 +55,8 @@ from .domain import (
     Tag,
     TaskStatus,
     TrustLevel,
+    User,
+    UserStatus,
     VisibilityRecord,
 )
 
@@ -192,6 +200,20 @@ class SQLiteRepository:
                     change_description TEXT NOT NULL,
                     metrics TEXT NOT NULL, result TEXT NOT NULL, status TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                    privacy_setting TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS access_policies (id TEXT PRIMARY KEY, subject_id TEXT NOT NULL,
+                    resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, permission TEXT NOT NULL,
+                    scope TEXT NOT NULL, created_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS share_requests (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL,
+                    object_type TEXT NOT NULL, object_id TEXT NOT NULL, target_visibility TEXT NOT NULL,
+                    permission TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS data_requests (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL,
+                    request_type TEXT NOT NULL, object_type TEXT, object_id TEXT, status TEXT NOT NULL,
+                    created_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS publication_records (id TEXT PRIMARY KEY, object_type TEXT NOT NULL,
+                    object_id TEXT NOT NULL, share_request_id TEXT NOT NULL, review_record_id TEXT NOT NULL,
+                    published_at TEXT NOT NULL, withdrawn_at TEXT);
             """)
             self._migrate_source_columns(conn)
             self._migrate_finding_columns(conn)
@@ -812,6 +834,123 @@ class SQLiteRepository:
                     json.dumps(experiment.metrics),
                     experiment.result,
                     experiment.status,
+                ),
+            )
+
+    def save_user(self, user: User) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO users VALUES (?, ?, ?, ?, ?)",
+                (user.id, user.name, user.privacy_setting, user.status, user.created_at.isoformat()),
+            )
+
+    def get_user(self, user_id: str) -> User | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return (
+            User(
+                id=row["id"],
+                name=row["name"],
+                privacy_setting=DataVisibility(row["privacy_setting"]),
+                status=UserStatus(row["status"]),
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            if row
+            else None
+        )
+
+    def save_access_policy(self, policy: AccessPolicy) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO access_policies VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    policy.id,
+                    policy.subject_id,
+                    policy.resource_type,
+                    policy.resource_id,
+                    policy.permission,
+                    policy.scope,
+                    policy.created_at.isoformat(),
+                ),
+            )
+
+    def list_access_policies(self, subject_id: str) -> list[AccessPolicy]:
+        with self.connect() as conn:
+            rows = conn.execute("SELECT * FROM access_policies WHERE subject_id = ?", (subject_id,)).fetchall()
+        return [
+            AccessPolicy(
+                id=row["id"],
+                subject_id=row["subject_id"],
+                resource_type=GraphNodeType(row["resource_type"]),
+                resource_id=row["resource_id"],
+                permission=PermissionName(row["permission"]),
+                scope=row["scope"],
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    def save_share_request(self, request: ShareRequest) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO share_requests VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    request.id,
+                    request.owner_id,
+                    request.object_type,
+                    request.object_id,
+                    request.target_visibility,
+                    request.permission,
+                    request.status,
+                    request.created_at.isoformat(),
+                ),
+            )
+
+    def get_share_request(self, request_id: str) -> ShareRequest | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM share_requests WHERE id = ?", (request_id,)).fetchone()
+        return (
+            ShareRequest(
+                id=row["id"],
+                owner_id=row["owner_id"],
+                object_type=GraphNodeType(row["object_type"]),
+                object_id=row["object_id"],
+                target_visibility=DataVisibility(row["target_visibility"]),
+                permission=PermissionName(row["permission"]),
+                status=ShareRequestStatus(row["status"]),
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            if row
+            else None
+        )
+
+    def save_publication(self, record: PublicationRecord) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO publication_records VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    record.id,
+                    record.object_type,
+                    record.object_id,
+                    record.share_request_id,
+                    record.review_record_id,
+                    record.published_at.isoformat(),
+                    record.withdrawn_at.isoformat() if record.withdrawn_at else None,
+                ),
+            )
+
+    def save_data_request(self, request: DataRequest) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO data_requests VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    request.id,
+                    request.owner_id,
+                    request.request_type,
+                    request.object_type,
+                    request.object_id,
+                    request.status,
+                    request.created_at.isoformat(),
                 ),
             )
 

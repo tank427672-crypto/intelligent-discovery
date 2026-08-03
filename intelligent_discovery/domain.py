@@ -165,6 +165,49 @@ class ExperimentStatus(StrEnum):
     COMPLETED = "completed"
 
 
+class UserStatus(StrEnum):
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+
+
+class RoleName(StrEnum):
+    OWNER = "owner"
+    ADMIN = "admin"
+    REVIEWER = "reviewer"
+    CONTRIBUTOR = "contributor"
+    MEMBER = "member"
+    VIEWER = "viewer"
+
+
+class PermissionName(StrEnum):
+    READ = "read"
+    WRITE = "write"
+    REVIEW = "review"
+    PUBLISH = "publish"
+    DELETE = "delete"
+    EXPORT = "export"
+
+
+class ShareRequestStatus(StrEnum):
+    REQUESTED = "requested"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    REVOKED = "revoked"
+
+
+class DataRequestType(StrEnum):
+    EXPORT = "export"
+    DELETE = "delete"
+    REVOKE = "revoke"
+    ACCESS = "access"
+
+
+class DataRequestStatus(StrEnum):
+    REQUESTED = "requested"
+    COMPLETED = "completed"
+    REJECTED = "rejected"
+
+
 @dataclass(slots=True)
 class DiscoveryTask:
     question: str
@@ -605,3 +648,65 @@ class EvolutionExperiment:
     result: str = ""
     status: ExperimentStatus = ExperimentStatus.PLANNED
     id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@dataclass(slots=True)
+class User:
+    name: str
+    privacy_setting: DataVisibility = DataVisibility.PRIVATE
+    status: UserStatus = UserStatus.ACTIVE
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class Organization:
+    name: str
+    organization_type: str
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class AccessPolicy:
+    subject_id: str
+    resource_type: GraphNodeType
+    resource_id: str
+    permission: PermissionName
+    scope: str = "local"
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class ShareRequest:
+    owner_id: str
+    object_type: GraphNodeType
+    object_id: str
+    target_visibility: DataVisibility
+    permission: PermissionName
+    status: ShareRequestStatus = ShareRequestStatus.REQUESTED
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class PublicationRecord:
+    object_type: GraphNodeType
+    object_id: str
+    share_request_id: str
+    review_record_id: str
+    published_at: datetime = field(default_factory=utc_now)
+    withdrawn_at: datetime | None = None
+    id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@dataclass(slots=True)
+class DataRequest:
+    owner_id: str
+    request_type: DataRequestType
+    object_type: GraphNodeType | None = None
+    object_id: str | None = None
+    status: DataRequestStatus = DataRequestStatus.REQUESTED
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
