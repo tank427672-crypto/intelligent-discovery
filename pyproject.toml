@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligent-discovery"
-version = "0.8.0"
+version = "0.9.1"
 description = "An extensible, evidence-led AI knowledge discovery ecosystem."
 requires-python = ">=3.11"
 readme = "README.md"

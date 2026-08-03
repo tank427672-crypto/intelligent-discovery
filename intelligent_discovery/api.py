@@ -7,6 +7,16 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field, HttpUrl
 
+from .beta import (
+    BetaFeedback,
+    BetaFeedbackService,
+    BetaFeedbackType,
+    BetaRole,
+    BetaUser,
+    SQLiteBetaAdapter,
+)
+from .case_seed import load_case_seeds
+from .case_view import CaseCardContract
 from .domain import (
     CaseLifecycleStatus,
     CaseRecord,
@@ -29,6 +39,7 @@ from .domain import (
     TrustLevel,
 )
 from .evolution import EvolutionCandidate, EvolutionService, SQLiteEvolutionAdapter
+from .observability import EventRecord, ObservabilityService, SQLiteObservabilityAdapter
 from .repository import SQLiteRepository
 from .response import (
     IncidentStatus,
@@ -54,8 +65,10 @@ discovery_intelligence = DiscoveryIntelligenceService(service.repository)
 renderer = ReportRenderer()
 response_service = ResponseService(SQLiteResponseAdapter("data/response.db"))
 evolution_service = EvolutionService(SQLiteEvolutionAdapter("data/evolution.db"))
+observability_service = ObservabilityService(SQLiteObservabilityAdapter("data/observability.db"))
+beta_feedback_service = BetaFeedbackService(SQLiteBetaAdapter("data/beta.db"), observability_service)
 app = FastAPI(
-    title="Intelligent Discovery", version="0.5.0", description="Evidence-led discovery and decision support."
+    title="Intelligent Discovery", version="0.9.1", description="Evidence-led discovery and decision support."
 )
 
 
@@ -73,6 +86,19 @@ class SourceInput(BaseModel):
     trust_level: TrustLevel = TrustLevel.UNVERIFIED
     status: SourceStatus = SourceStatus.UNVERIFIED
     license_info: str = Field(default="unknown", max_length=500)
+
+
+class BetaUserInput(BaseModel):
+    role: BetaRole
+    permissions: list[str] = Field(default_factory=list)
+
+
+class BetaFeedbackInput(BaseModel):
+    user_id: str
+    target: str = Field(min_length=1, max_length=500)
+    feedback_type: BetaFeedbackType
+    content: str = Field(min_length=1, max_length=5000)
+    priority: str = Field(default="normal", pattern="^(low|normal|high|critical)$")
 
 
 class EvidenceInput(BaseModel):
@@ -454,6 +480,8 @@ def create_classification(payload: ClassificationInput) -> dict[str, object]:
 
 @app.get("/search")
 def search(query: str) -> dict[str, object]:
+    # Query text can be private; observability records only that a search occurred.
+    observability_service.emit(EventRecord("SearchPerformed", "anonymous", "local-knowledge-search"))
     search_query, results = translate(lambda: discovery_intelligence.search(query))
     return {
         "query": serialize(search_query),
@@ -497,3 +525,39 @@ def report(task_id: str) -> Response:
 @app.get("/knowledge")
 def list_knowledge() -> list[dict[str, object]]:
     return [serialize(record) for record in service.repository.list_knowledge()]
+
+
+@app.get("/beta/featured-discoveries")
+def featured_discoveries() -> list[dict[str, object]]:
+    """Expose curated seed candidates without representing them as verified cases."""
+    observability_service.emit(EventRecord("CaseViewed", "anonymous", "featured-seed-catalog"))
+    seed_path = Path(__file__).parent.parent / "case_seed" / "cases.json"
+    return [
+        serialize(
+            CaseCardContract(
+                name=seed.name,
+                case_type=seed.case_type,
+                credibility=0,
+                source_count=1,
+                evidence_count=0,
+                updated_at="seed-candidate",
+                related_problem=seed.category,
+            )
+        )
+        for seed in load_case_seeds(seed_path)
+    ]
+
+
+@app.post("/beta/users", status_code=status.HTTP_201_CREATED)
+def create_beta_user(payload: BetaUserInput) -> dict[str, object]:
+    permissions = payload.permissions or ["feedback:submit"]
+    return serialize(beta_feedback_service.register_user(BetaUser(role=payload.role, permissions=permissions)))
+
+
+@app.post("/beta/feedback", status_code=status.HTTP_201_CREATED)
+def submit_beta_feedback(payload: BetaFeedbackInput) -> dict[str, object]:
+    try:
+        feedback = beta_feedback_service.submit(BetaFeedback(**payload.model_dump()))
+    except PermissionError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
+    return {"feedback": serialize(feedback), "review_route": beta_feedback_service.route(feedback)}

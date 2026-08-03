@@ -4,7 +4,7 @@
 
 Intelligent Discovery 是一个长期演进的开放式工程，而不是自动替用户决策的黑箱。每个结论应能回溯到资料来源、置信度和仍然未知的问题。
 
-## 当前能力（v0.1）
+## 当前能力（v0.9.1 Beta Preparation）
 
 实现了可追溯的「发现—研究—分析—报告」闭环：
 
@@ -29,6 +29,9 @@ Intelligent Discovery 是一个长期演进的开放式工程，而不是自动�
 - [架构决策记录](docs/DECISION_LOG.md)：重大取舍的原因与影响。
 - [测试记录](docs/TEST_RECORD.md)：质量门禁与最近一次验证。
 - [阶段工程报告](docs/reports/2026-08-03-engineering-baseline.md)：当前阶段交付证据。
+- [Beta 测试说明](BETA.md)：测试用户边界、反馈入口与处理路径。
+- [案例种子与展示指南](CASE_GUIDE.md)：候选案例、版权和人工导入门槛。
+- [发布计划](RELEASE_PLAN.md)：Alpha 到 Beta 的人工发布门禁。
 - [贡献指南](CONTRIBUTING.md)：本地开发、PR 与模块接入规范。
 
 ## 快速开始
@@ -42,9 +45,9 @@ uvicorn intelligent_discovery.api:app --reload
 
 打开 `http://127.0.0.1:8000/docs` 试用 API。数据库默认位于 `data/intelligent_discovery.db`；可通过 `ID_DATABASE_PATH` 覆盖。
 
-## 边界
+## Beta 边界
 
-v0.1 不内置联网爬取或自动决策。它提供资料登记、分析编排和报告能力；外部搜索、推荐、个人画像、社区等能力通过 `intelligent_discovery.extensions` 的契约后续接入。
+案例种子仅用于展示和人工研究准备，尚未导入为已验证知识。测试用户可以通过 API 浏览候选和提交反馈，但公开发布、自动决策、自动治理、自动积分及自动处罚均未实现。
 
 ## 开源准备状态
 

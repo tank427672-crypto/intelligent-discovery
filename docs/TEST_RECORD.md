@@ -11,13 +11,13 @@
 
 高风险模块还需要契约、权限、隐私、滥用和性能测试。
 
-## 最近一次记录：2026-08-03（v0.8 Observability + Reliability Intelligence Foundation）
+## 最近一次记录：2026-08-03（v0.9.1 Beta Release Preparation + Case Showcase Foundation）
 
 | 项目 | 结果 | 证据 |
 | --- | --- | --- |
 | Python 版本 | 通过 | Python 3.14.6 |
-| 单元/API/契约测试 | 通过 | 17 passed |
+| 单元/API/契约测试 | 通过 | 26 passed（1 条第三方弃用警告） |
 | 编译检查 | 通过 | `compileall` 退出码 0 |
 | 静态检查 | 通过 | `ruff check .`：All checks passed |
 
-测试覆盖范围：发现任务生命周期、来源归属、来源智能元数据、独立证据与跨任务隔离、人工复核反馈、研究失败语义、案例生命周期、案例版本历史、跨任务案例关联、案例 API、案例提供器契约、知识沉淀、Markdown 报告和 HTTP 闭环。
+测试覆盖范围：既有发现/研究/案例/图谱/治理闭环，以及案例候选导入、许可证声明、展示契约、Beta 反馈权限与分诊、发布检查清单和反馈事件最小化记录。

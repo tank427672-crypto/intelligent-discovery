@@ -1,0 +1,22 @@
+[
+ {"name":"GitHub 开发者生态","type":"open_source","category":"开源生态","source":"https://docs.github.com/en/get-started/start-your-journey/about-github-and-git","license":"GitHub Docs terms","summary":"候选：代码托管与协作工具如何形成开发者网络。"},
+ {"name":"Linux 开源治理","type":"open_source","category":"开源生态","source":"https://www.kernel.org/","license":"public site terms","summary":"候选：分布式贡献与维护者治理。"},
+ {"name":"Wikipedia 知识协作","type":"community","category":"社区生态","source":"https://meta.wikimedia.org/wiki/Wikimedia_Foundation","license":"CC BY-SA where applicable","summary":"候选：公开协作、引用与治理。"},
+ {"name":"Apache 软件基金会","type":"open_source","category":"开源生态","source":"https://www.apache.org/foundation/","license":"Apache site terms","summary":"候选：项目孵化与社区治理。"},
+ {"name":"Python 社区治理","type":"community","category":"开源生态","source":"https://www.python.org/community/","license":"PSF terms","summary":"候选：语言生态的协作与标准。"},
+ {"name":"Hugging Face 模型生态","type":"ai_platform","category":"AI与科技","source":"https://huggingface.co/docs/hub/index","license":"Hub terms","summary":"候选：模型、数据集与开发者协作。"},
+ {"name":"OpenAI 开发者平台","type":"ai_platform","category":"AI与科技","source":"https://platform.openai.com/docs","license":"OpenAI terms","summary":"候选：API 平台与开发者生态。"},
+ {"name":"TensorFlow 开源生态","type":"ai_platform","category":"AI与科技","source":"https://www.tensorflow.org/learn","license":"Apache 2.0 docs/code","summary":"候选：框架、社区与教育资源。"},
+ {"name":"Kubernetes 云原生协作","type":"open_source","category":"AI与科技","source":"https://www.cncf.io/projects/kubernetes/","license":"CNCF terms","summary":"候选：云原生标准与生态协作。"},
+ {"name":"Mozilla 浏览器生态","type":"community","category":"社区生态","source":"https://foundation.mozilla.org/","license":"Mozilla terms","summary":"候选：公益使命与开放网络。"},
+ {"name":"Reddit 社区治理","type":"community","category":"社区生态","source":"https://www.redditinc.com/policies/content-policy","license":"Reddit terms","summary":"候选：平台规则与版主协作。"},
+ {"name":"Stack Overflow 知识问答","type":"community","category":"社区生态","source":"https://stackoverflow.co/","license":"Stack Exchange terms","summary":"候选：问答、声誉与质量控制。"},
+ {"name":"Airbnb 双边市场","type":"platform","category":"商业生态","source":"https://news.airbnb.com/about-us/","license":"Airbnb terms","summary":"候选：供需平台与信任机制。"},
+ {"name":"Etsy 创作者市场","type":"platform","category":"商业生态","source":"https://www.etsy.com/about","license":"Etsy terms","summary":"候选：创作者社区与市场规则。"},
+ {"name":"Wikipedia 资金治理","type":"governance","category":"商业生态","source":"https://wikimediafoundation.org/about/","license":"CC BY-SA where applicable","summary":"候选：非营利知识基础设施。"},
+ {"name":"Quibi 短视频失败","type":"failure","category":"创业与失败案例","source":"https://www.sec.gov/ixviewer/doc/action?doc=/Archives/edgar/data/1812968/000110465920116774/tm2033894d1_8k.htm","license":"US public record","summary":"候选：产品定位与市场时机风险。"},
+ {"name":"WeWork 治理危机","type":"failure","category":"创业与失败案例","source":"https://www.sec.gov/ixviewer/doc/action?doc=/Archives/edgar/data/1813756/000119312519243078/d780652ds1.htm","license":"US public record","summary":"候选：治理、增长与风险披露。"},
+ {"name":"Myspace 平台衰落","type":"failure","category":"创业与失败案例","source":"https://www.britannica.com/topic/Myspace","license":"Britannica terms","summary":"候选：竞争、产品与用户迁移。"},
+ {"name":"Docker 容器生态","type":"technology","category":"AI与科技","source":"https://www.docker.com/resources/what-container/","license":"Docker terms","summary":"候选：开发工具与标准化。"},
+ {"name":"WordPress 社区生态","type":"community","category":"社区生态","source":"https://wordpress.org/about/","license":"GPL/site terms","summary":"候选：开源内容管理与贡献。"}
+]
