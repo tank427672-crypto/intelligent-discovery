@@ -16,19 +16,24 @@ from .domain import (
     EvidenceStatus,
     FeedbackVerdict,
     FindingKind,
+    GraphNodeType,
+    ReflectionRecord,
+    ReflectionStatus,
+    RelationshipType,
     SourceStatus,
     SourceType,
     TrustLevel,
 )
 from .repository import SQLiteRepository
-from .services import CaseService, DiscoveryService, NotFoundError, ReportRenderer
+from .services import CaseService, DiscoveryService, KnowledgeGraphService, NotFoundError, ReportRenderer
 
 database_path = Path(os.getenv("ID_DATABASE_PATH", "data/intelligent_discovery.db"))
 service = DiscoveryService(SQLiteRepository(database_path))
 case_service = CaseService(service.repository)
+graph_service = KnowledgeGraphService(service.repository)
 renderer = ReportRenderer()
 app = FastAPI(
-    title="Intelligent Discovery", version="0.3.0", description="Evidence-led discovery and decision support."
+    title="Intelligent Discovery", version="0.4.0", description="Evidence-led discovery and decision support."
 )
 
 
@@ -117,6 +122,33 @@ class CaseLinkInput(BaseModel):
     note: str = Field(default="", max_length=2000)
 
 
+class ConceptInput(BaseModel):
+    name: str = Field(min_length=1, max_length=500)
+    concept_type: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=5000)
+
+
+class RelationshipInput(BaseModel):
+    source_type: GraphNodeType
+    source_id: str
+    target_type: GraphNodeType
+    target_id: str
+    relationship_type: RelationshipType
+    evidence_ids: list[str] = Field(default_factory=list)
+    description: str = Field(default="", max_length=5000)
+
+
+class ReflectionInput(BaseModel):
+    case_id: str
+    original_judgment: str = Field(min_length=1, max_length=5000)
+    actual_outcome: str = Field(min_length=1, max_length=5000)
+    deviation: str = Field(min_length=1, max_length=5000)
+    cause_analysis: str = Field(min_length=1, max_length=5000)
+    learning_update: str = Field(min_length=1, max_length=5000)
+    evidence_ids: list[str] = Field(default_factory=list)
+    status: ReflectionStatus = ReflectionStatus.OBSERVED
+
+
 def serialize(value: object) -> dict[str, object]:
     data = asdict(value)
     return {
@@ -136,7 +168,7 @@ def translate(action):
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.3.0"}
+    return {"status": "ok", "version": "0.4.0"}
 
 
 @app.post("/tasks", status_code=status.HTTP_201_CREATED)
@@ -257,6 +289,44 @@ def link_case(case_id: str, payload: CaseLinkInput) -> dict[str, object]:
     return serialize(
         translate(lambda: case_service.link_case_to_task(case_id, payload.task_id, payload.relation, payload.note))
     )
+
+
+@app.post("/concepts", status_code=status.HTTP_201_CREATED)
+def create_concept(payload: ConceptInput) -> dict[str, object]:
+    return serialize(
+        translate(lambda: graph_service.create_concept(payload.name, payload.concept_type, payload.description))
+    )
+
+
+@app.get("/concepts")
+def list_concepts(query: str | None = None) -> list[dict[str, object]]:
+    return [serialize(item) for item in service.repository.list_concepts(query)]
+
+
+@app.post("/relationships", status_code=status.HTTP_201_CREATED)
+def create_relationship(payload: RelationshipInput) -> dict[str, object]:
+    return serialize(translate(lambda: graph_service.relate(**payload.model_dump())))
+
+
+@app.get("/graph/{node_type}/{node_id}")
+def graph_neighbors(node_type: GraphNodeType, node_id: str) -> list[dict[str, object]]:
+    return [serialize(item) for item in translate(lambda: graph_service.relationships_for(node_type, node_id))]
+
+
+@app.get("/cases/{case_id}/similar")
+def similar_cases(case_id: str) -> list[dict[str, object]]:
+    return [serialize(item) for item in translate(lambda: graph_service.similar_cases(case_id))]
+
+
+@app.post("/reflections", status_code=status.HTTP_201_CREATED)
+def create_reflection(payload: ReflectionInput) -> dict[str, object]:
+    return serialize(translate(lambda: graph_service.add_reflection(ReflectionRecord(**payload.model_dump()))))
+
+
+@app.get("/cases/{case_id}/reflections")
+def list_reflections(case_id: str) -> list[dict[str, object]]:
+    translate(lambda: case_service.get_case(case_id))
+    return [serialize(item) for item in service.repository.list_reflections(case_id)]
 
 
 @app.post("/tasks/{task_id}/analyze")

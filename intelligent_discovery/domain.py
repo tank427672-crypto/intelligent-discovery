@@ -86,6 +86,32 @@ class CaseTaskRelation(StrEnum):
     APPLIED_TO = "applied_to"
 
 
+class GraphNodeType(StrEnum):
+    SOURCE = "source"
+    EVIDENCE = "evidence"
+    FINDING = "finding"
+    KNOWLEDGE = "knowledge"
+    CASE = "case"
+    CONCEPT = "concept"
+
+
+class RelationshipType(StrEnum):
+    SUPPORTS = "supports"
+    CONTRADICTS = "contradicts"
+    USES = "uses"
+    BELONGS_TO = "belongs_to"
+    SOLVES = "solves"
+    HAS_SUCCESS_FACTOR = "has_success_factor"
+    HAS_FAILURE_FACTOR = "has_failure_factor"
+    INFLUENCES = "influences"
+    RELATED_TO = "related_to"
+
+
+class ReflectionStatus(StrEnum):
+    OBSERVED = "observed"
+    REVIEWED = "reviewed"
+
+
 @dataclass(slots=True)
 class DiscoveryTask:
     question: str
@@ -257,3 +283,77 @@ class CaseTaskLink:
     note: str = ""
     id: str = field(default_factory=lambda: str(uuid4()))
     created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class Concept:
+    name: str
+    concept_type: str
+    description: str
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.name.strip() or not self.concept_type.strip():
+            raise ValueError("concept name and type are required")
+
+
+@dataclass(slots=True)
+class Relationship:
+    source_type: GraphNodeType
+    source_id: str
+    target_type: GraphNodeType
+    target_id: str
+    relationship_type: RelationshipType
+    evidence_ids: list[str] = field(default_factory=list)
+    description: str = ""
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if self.source_type == self.target_type and self.source_id == self.target_id:
+            raise ValueError("relationships cannot self-reference")
+
+
+@dataclass(slots=True)
+class DecisionContext:
+    question: str
+    goal: str
+    constraints: list[str]
+    options: list[str]
+    evidence_ids: list[str] = field(default_factory=list)
+    case_ids: list[str] = field(default_factory=list)
+    unknowns: list[str] = field(default_factory=list)
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.question.strip() or not self.goal.strip() or not self.options:
+            raise ValueError("decision question, goal and at least one option are required")
+
+
+@dataclass(slots=True)
+class ReflectionRecord:
+    case_id: str
+    original_judgment: str
+    actual_outcome: str
+    deviation: str
+    cause_analysis: str
+    learning_update: str
+    evidence_ids: list[str] = field(default_factory=list)
+    status: ReflectionStatus = ReflectionStatus.OBSERVED
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        required = (
+            self.original_judgment,
+            self.actual_outcome,
+            self.deviation,
+            self.cause_analysis,
+            self.learning_update,
+        )
+        if not all(value.strip() for value in required):
+            raise ValueError("reflection requires judgment, outcome, deviation, cause analysis and learning update")

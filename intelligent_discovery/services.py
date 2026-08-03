@@ -8,6 +8,7 @@ from .domain import (
     CaseRevision,
     CaseTaskLink,
     CaseTaskRelation,
+    Concept,
     DiscoveryTask,
     Evidence,
     EvidenceRelation,
@@ -16,7 +17,11 @@ from .domain import (
     Finding,
     FindingFeedback,
     FindingKind,
+    GraphNodeType,
     KnowledgeRecord,
+    ReflectionRecord,
+    Relationship,
+    RelationshipType,
     Source,
     SourceStatus,
     SourceType,
@@ -384,3 +389,76 @@ class ReportRenderer:
             lines.append("- 尚无关联案例。")
         lines.extend(["", "## 下一步", "- 复核关键来源，补充未知项，并由用户基于证据作出决策。", ""])
         return "\n".join(lines)
+
+
+class KnowledgeGraphService:
+    """Evidence-bound graph operations; it does not infer or fabricate relationships."""
+
+    def __init__(self, repository: DiscoveryRepository) -> None:
+        self.repository = repository
+
+    def create_concept(self, name: str, concept_type: str, description: str = "") -> Concept:
+        concept = Concept(name=name.strip(), concept_type=concept_type.strip(), description=description.strip())
+        self.repository.save_concept(concept)
+        return concept
+
+    def relate(
+        self,
+        source_type: GraphNodeType,
+        source_id: str,
+        target_type: GraphNodeType,
+        target_id: str,
+        relationship_type: RelationshipType,
+        evidence_ids: list[str] | None = None,
+        description: str = "",
+    ) -> Relationship:
+        if not self.repository.entity_exists(source_type, source_id):
+            raise ValueError("relationship source must exist")
+        if not self.repository.entity_exists(target_type, target_id):
+            raise ValueError("relationship target must exist")
+        evidence_ids = evidence_ids or []
+        for evidence_id in evidence_ids:
+            if not self.repository.entity_exists(GraphNodeType.EVIDENCE, evidence_id):
+                raise ValueError("relationship evidence must exist")
+        relationship = Relationship(
+            source_type=source_type,
+            source_id=source_id,
+            target_type=target_type,
+            target_id=target_id,
+            relationship_type=relationship_type,
+            evidence_ids=evidence_ids,
+            description=description.strip(),
+        )
+        self.repository.save_relationship(relationship)
+        return relationship
+
+    def relationships_for(self, node_type: GraphNodeType, node_id: str) -> list[Relationship]:
+        if not self.repository.entity_exists(node_type, node_id):
+            raise NotFoundError(f"graph node {node_type}:{node_id} was not found")
+        return self.repository.list_relationships(node_type, node_id)
+
+    def similar_cases(self, case_id: str) -> list[CaseRecord]:
+        if not self.repository.get_case(case_id):
+            raise NotFoundError(f"case {case_id} was not found")
+        concepts = {
+            relationship.target_id
+            for relationship in self.repository.list_relationships(GraphNodeType.CASE, case_id)
+            if relationship.target_type == GraphNodeType.CONCEPT
+        }
+        scores: dict[str, int] = {}
+        for concept_id in concepts:
+            for relationship in self.repository.list_relationships(GraphNodeType.CONCEPT, concept_id):
+                if relationship.source_type == GraphNodeType.CASE and relationship.source_id != case_id:
+                    scores[relationship.source_id] = scores.get(relationship.source_id, 0) + 1
+        records = {record.id: record for record in self.repository.list_cases()}
+        return [records[item] for item in sorted(scores, key=lambda item: (-scores[item], item)) if item in records]
+
+    def add_reflection(self, reflection: ReflectionRecord) -> ReflectionRecord:
+        case = self.repository.get_case(reflection.case_id)
+        if not case:
+            raise NotFoundError(f"case {reflection.case_id} was not found")
+        valid_evidence = {item.id for item in self.repository.list_evidence(case.origin_task_id)}
+        if any(item not in valid_evidence for item in reflection.evidence_ids):
+            raise ValueError("reflection evidence must belong to the case origin task")
+        self.repository.save_reflection(reflection)
+        return reflection

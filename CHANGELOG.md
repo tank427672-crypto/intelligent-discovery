@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-03
+
+### Added
+
+- Knowledge Graph Foundation：Concept、带证据 Relationship、关系查询和跨任务案例相似度。
+- ReflectionRecord：记录原始判断、现实结果、偏差、原因分析与经验更新。
+- 决策分析的仅契约接口，要求输出证据、风险、未知项、限制和人工复核标记。
+
 ## [0.3.0] - 2026-08-03
 
 ### Added

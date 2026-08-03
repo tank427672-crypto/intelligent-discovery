@@ -20,6 +20,7 @@ Intelligent Discovery 是一个长期演进的开放式工程，而不是自动�
 - [项目总览（建议从这里阅读）](docs/PROJECT_OVERVIEW.md)：一次性查看项目愿景、架构、模块、路线、质量与风险。
 - [研究智能基础](docs/RESEARCH_INTELLIGENCE.md)：来源、证据、引用、人工复核与研究失败契约。
 - [案例智能基础](docs/CASE_INTELLIGENCE.md)：案例资产、版本、验证、跨任务关联与未来插件边界。
+- [知识图谱与决策基础](docs/KNOWLEDGE_GRAPH.md)：概念、证据关系、反思与决策契约边界。
 - [架构说明](docs/ARCHITECTURE.md)：分层、依赖方向与模块边界。
 - [模块与扩展](docs/EXTENSIBILITY.md)：已规划生态能力及接入约束。
 - [开发路线](docs/ROADMAP.md)：阶段目标与非目标。

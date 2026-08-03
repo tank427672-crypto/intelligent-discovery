@@ -12,6 +12,7 @@ from .domain import (
     CaseTaskLink,
     CaseTaskRelation,
     CaseVerificationStatus,
+    Concept,
     DiscoveryTask,
     Evidence,
     EvidenceRelation,
@@ -20,7 +21,12 @@ from .domain import (
     Finding,
     FindingFeedback,
     FindingKind,
+    GraphNodeType,
     KnowledgeRecord,
+    ReflectionRecord,
+    ReflectionStatus,
+    Relationship,
+    RelationshipType,
     Source,
     SourceStatus,
     SourceType,
@@ -100,6 +106,24 @@ class SQLiteRepository:
                     relation TEXT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL,
                     UNIQUE(case_id, task_id, relation), FOREIGN KEY(case_id) REFERENCES cases(id),
                     FOREIGN KEY(task_id) REFERENCES tasks(id)
+                );
+                CREATE TABLE IF NOT EXISTS concepts (
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, concept_type TEXT NOT NULL,
+                    description TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                    UNIQUE(name, concept_type)
+                );
+                CREATE TABLE IF NOT EXISTS relationships (
+                    id TEXT PRIMARY KEY, source_type TEXT NOT NULL, source_id TEXT NOT NULL,
+                    target_type TEXT NOT NULL, target_id TEXT NOT NULL, relationship_type TEXT NOT NULL,
+                    evidence_ids TEXT NOT NULL, description TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_relationship_source ON relationships(source_type, source_id);
+                CREATE INDEX IF NOT EXISTS idx_relationship_target ON relationships(target_type, target_id);
+                CREATE TABLE IF NOT EXISTS reflection_records (
+                    id TEXT PRIMARY KEY, case_id TEXT NOT NULL, original_judgment TEXT NOT NULL,
+                    actual_outcome TEXT NOT NULL, deviation TEXT NOT NULL, cause_analysis TEXT NOT NULL,
+                    learning_update TEXT NOT NULL, evidence_ids TEXT NOT NULL, status TEXT NOT NULL,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(case_id) REFERENCES cases(id)
                 );
             """)
             self._migrate_source_columns(conn)
@@ -357,6 +381,100 @@ class SQLiteRepository:
             rows = conn.execute("SELECT * FROM case_task_links WHERE task_id = ?", (task_id,)).fetchall()
         return [self._case_task_link(row) for row in rows]
 
+    def save_concept(self, concept: Concept) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO concepts VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    concept.id,
+                    concept.name,
+                    concept.concept_type,
+                    concept.description,
+                    concept.created_at.isoformat(),
+                    concept.updated_at.isoformat(),
+                ),
+            )
+
+    def get_concept(self, concept_id: str) -> Concept | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM concepts WHERE id = ?", (concept_id,)).fetchone()
+        return self._concept(row) if row else None
+
+    def list_concepts(self, query: str | None = None) -> list[Concept]:
+        with self.connect() as conn:
+            if query:
+                pattern = f"%{query}%"
+                rows = conn.execute(
+                    "SELECT * FROM concepts WHERE name LIKE ? OR description LIKE ? ORDER BY name", (pattern, pattern)
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM concepts ORDER BY name").fetchall()
+        return [self._concept(row) for row in rows]
+
+    def save_relationship(self, relationship: Relationship) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO relationships VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    relationship.id,
+                    relationship.source_type,
+                    relationship.source_id,
+                    relationship.target_type,
+                    relationship.target_id,
+                    relationship.relationship_type,
+                    json.dumps(relationship.evidence_ids),
+                    relationship.description,
+                    relationship.created_at.isoformat(),
+                ),
+            )
+
+    def list_relationships(self, node_type: GraphNodeType, node_id: str) -> list[Relationship]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM relationships WHERE (source_type = ? AND source_id = ?)
+                OR (target_type = ? AND target_id = ?) ORDER BY created_at""",
+                (node_type, node_id, node_type, node_id),
+            ).fetchall()
+        return [self._relationship(row) for row in rows]
+
+    def entity_exists(self, node_type: GraphNodeType, entity_id: str) -> bool:
+        tables = {
+            GraphNodeType.SOURCE: "sources",
+            GraphNodeType.EVIDENCE: "evidence",
+            GraphNodeType.FINDING: "findings",
+            GraphNodeType.KNOWLEDGE: "knowledge_records",
+            GraphNodeType.CASE: "cases",
+            GraphNodeType.CONCEPT: "concepts",
+        }
+        with self.connect() as conn:
+            return conn.execute(f"SELECT 1 FROM {tables[node_type]} WHERE id = ?", (entity_id,)).fetchone() is not None
+
+    def save_reflection(self, reflection: ReflectionRecord) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO reflection_records VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    reflection.id,
+                    reflection.case_id,
+                    reflection.original_judgment,
+                    reflection.actual_outcome,
+                    reflection.deviation,
+                    reflection.cause_analysis,
+                    reflection.learning_update,
+                    json.dumps(reflection.evidence_ids),
+                    reflection.status,
+                    reflection.created_at.isoformat(),
+                    reflection.updated_at.isoformat(),
+                ),
+            )
+
+    def list_reflections(self, case_id: str) -> list[ReflectionRecord]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM reflection_records WHERE case_id = ? ORDER BY created_at", (case_id,)
+            ).fetchall()
+        return [self._reflection(row) for row in rows]
+
     @staticmethod
     def _task(row: sqlite3.Row) -> DiscoveryTask:
         return DiscoveryTask(
@@ -476,4 +594,45 @@ class SQLiteRepository:
             relation=CaseTaskRelation(row["relation"]),
             note=row["note"],
             created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    @staticmethod
+    def _concept(row: sqlite3.Row) -> Concept:
+        return Concept(
+            id=row["id"],
+            name=row["name"],
+            concept_type=row["concept_type"],
+            description=row["description"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )
+
+    @staticmethod
+    def _relationship(row: sqlite3.Row) -> Relationship:
+        return Relationship(
+            id=row["id"],
+            source_type=GraphNodeType(row["source_type"]),
+            source_id=row["source_id"],
+            target_type=GraphNodeType(row["target_type"]),
+            target_id=row["target_id"],
+            relationship_type=RelationshipType(row["relationship_type"]),
+            evidence_ids=json.loads(row["evidence_ids"]),
+            description=row["description"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    @staticmethod
+    def _reflection(row: sqlite3.Row) -> ReflectionRecord:
+        return ReflectionRecord(
+            id=row["id"],
+            case_id=row["case_id"],
+            original_judgment=row["original_judgment"],
+            actual_outcome=row["actual_outcome"],
+            deviation=row["deviation"],
+            cause_analysis=row["cause_analysis"],
+            learning_update=row["learning_update"],
+            evidence_ids=json.loads(row["evidence_ids"]),
+            status=ReflectionStatus(row["status"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
         )
