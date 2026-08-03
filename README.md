@@ -32,6 +32,7 @@ Intelligent Discovery 是一个长期演进的开放式工程，而不是自动�
 - [Beta 测试说明](BETA.md)：测试用户边界、反馈入口与处理路径。
 - [案例种子与展示指南](CASE_GUIDE.md)：候选案例、版权和人工导入门槛。
 - [发布计划](RELEASE_PLAN.md)：Alpha 到 Beta 的人工发布门禁。
+- [沟通智能基础](docs/COMMUNICATION_INTELLIGENCE.md)：私有沟通、反馈处理、受控求助和 AI 解释边界。
 - [贡献指南](CONTRIBUTING.md)：本地开发、PR 与模块接入规范。
 
 ## 快速开始
