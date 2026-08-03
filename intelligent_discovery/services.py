@@ -11,28 +11,38 @@ from .domain import (
     Category,
     Classification,
     Concept,
+    DataVisibility,
     DiscoveryTask,
     Evidence,
     EvidenceRelation,
     EvidenceStatus,
+    EvolutionExperiment,
+    ExperimentStatus,
+    FeaturePerformance,
     FeedbackVerdict,
     Finding,
     FindingFeedback,
     FindingKind,
+    GovernanceRecord,
     GraphNodeType,
+    ImprovementProposal,
+    ImprovementStatus,
     KnowledgeRecord,
     RecommendationRecord,
     ReflectionRecord,
     Relationship,
     RelationshipType,
+    ReviewRecord,
     SearchFeedback,
     SearchQuery,
     Source,
     SourceStatus,
     SourceType,
+    SystemFeedback,
     Tag,
     TaskStatus,
     TrustLevel,
+    VisibilityRecord,
     utc_now,
 )
 from .ports import DiscoveryRepository
@@ -529,3 +539,57 @@ class DiscoveryIntelligenceService:
             raise ValueError("recommendation reason is required")
         self.repository.save_recommendation(recommendation)
         return recommendation
+
+
+class TrustGovernanceService:
+    """Human-controlled visibility, review and product-evolution records."""
+
+    def __init__(self, repository: DiscoveryRepository) -> None:
+        self.repository = repository
+
+    def set_visibility(self, record: VisibilityRecord) -> VisibilityRecord:
+        if not self.repository.entity_exists(record.object_type, record.object_id):
+            raise ValueError("visibility object must exist")
+        existing = self.repository.get_visibility(record.object_type, record.object_id)
+        if existing and existing.visibility == DataVisibility.PRIVATE and record.visibility == DataVisibility.PUBLIC:
+            raise ValueError("private data must be explicitly shared and reviewed before public visibility")
+        self.repository.save_visibility(record)
+        self.repository.save_governance(
+            GovernanceRecord(record.object_type, record.object_id, "visibility_changed", record.visibility)
+        )
+        return record
+
+    def review(self, record: ReviewRecord) -> ReviewRecord:
+        if not self.repository.entity_exists(record.object_type, record.object_id):
+            raise ValueError("review object must exist")
+        self.repository.save_review(record)
+        self.repository.save_governance(
+            GovernanceRecord(
+                record.object_type, record.object_id, "reviewed", record.decision, record.reviewer_reference
+            )
+        )
+        return record
+
+    def add_feedback(self, feedback: SystemFeedback) -> SystemFeedback:
+        if not feedback.feature.strip() or not feedback.description.strip():
+            raise ValueError("feedback feature and description are required")
+        self.repository.save_system_feedback(feedback)
+        return feedback
+
+    def performance(self, feature: str) -> FeaturePerformance:
+        return self.repository.feature_performance(feature)
+
+    def propose_improvement(self, proposal: ImprovementProposal) -> ImprovementProposal:
+        if not proposal.problem.strip() or not proposal.proposal.strip():
+            raise ValueError("improvement problem and proposal are required")
+        self.repository.save_improvement(proposal)
+        return proposal
+
+    def start_experiment(self, experiment: EvolutionExperiment) -> EvolutionExperiment:
+        proposal = self.repository.get_improvement(experiment.proposal_id)
+        if not proposal or proposal.status != ImprovementStatus.APPROVED:
+            raise ValueError("experiments require an approved improvement proposal")
+        if experiment.status != ExperimentStatus.PLANNED:
+            raise ValueError("experiments must start in planned status")
+        self.repository.save_experiment(experiment)
+        return experiment

@@ -17,29 +17,39 @@ from .domain import (
     ClassificationSource,
     ClassificationStatus,
     Concept,
+    DataLifecycleStatus,
+    DataVisibility,
     DiscoveryTask,
     Evidence,
     EvidenceRelation,
     EvidenceStatus,
+    EvolutionExperiment,
+    FeaturePerformance,
     FeedbackVerdict,
     Finding,
     FindingFeedback,
     FindingKind,
+    GovernanceRecord,
     GraphNodeType,
+    ImprovementProposal,
+    ImprovementStatus,
     KnowledgeRecord,
     RecommendationRecord,
     ReflectionRecord,
     ReflectionStatus,
     Relationship,
     RelationshipType,
+    ReviewRecord,
     SearchFeedback,
     SearchQuery,
     Source,
     SourceStatus,
     SourceType,
+    SystemFeedback,
     Tag,
     TaskStatus,
     TrustLevel,
+    VisibilityRecord,
 )
 
 
@@ -155,6 +165,32 @@ class SQLiteRepository:
                 CREATE TABLE IF NOT EXISTS recommendation_records (
                     id TEXT PRIMARY KEY, object_type TEXT NOT NULL, object_id TEXT NOT NULL, reason TEXT NOT NULL,
                     evidence_ids TEXT NOT NULL, case_ids TEXT NOT NULL, feedback TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS governance_records (
+                    id TEXT PRIMARY KEY, object_type TEXT NOT NULL, object_id TEXT NOT NULL, action TEXT NOT NULL,
+                    reason TEXT NOT NULL, actor_reference TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS review_records (
+                    id TEXT PRIMARY KEY, object_type TEXT NOT NULL, object_id TEXT NOT NULL,
+                    reviewer_reference TEXT NOT NULL,
+                    decision TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS visibility_records (
+                    id TEXT PRIMARY KEY, object_type TEXT NOT NULL, object_id TEXT NOT NULL, visibility TEXT NOT NULL,
+                    lifecycle_status TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(object_type, object_id)
+                );
+                CREATE TABLE IF NOT EXISTS system_feedback (
+                    id TEXT PRIMARY KEY, feature TEXT NOT NULL, feedback_type TEXT NOT NULL, rating INTEGER,
+                    description TEXT NOT NULL, related_action TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS improvement_proposals (
+                    id TEXT PRIMARY KEY, problem TEXT NOT NULL, feedback_ids TEXT NOT NULL, proposal TEXT NOT NULL,
+                    priority TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS evolution_experiments (
+                    id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL, objective TEXT NOT NULL,
+                    change_description TEXT NOT NULL,
+                    metrics TEXT NOT NULL, result TEXT NOT NULL, status TEXT NOT NULL
                 );
             """)
             self._migrate_source_columns(conn)
@@ -634,6 +670,150 @@ class SQLiteRepository:
                 (pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def save_governance(self, record: GovernanceRecord) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO governance_records VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    record.id,
+                    record.object_type,
+                    record.object_id,
+                    record.action,
+                    record.reason,
+                    record.actor_reference,
+                    record.created_at.isoformat(),
+                ),
+            )
+
+    def save_review(self, record: ReviewRecord) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO review_records VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    record.id,
+                    record.object_type,
+                    record.object_id,
+                    record.reviewer_reference,
+                    record.decision,
+                    record.reason,
+                    record.created_at.isoformat(),
+                ),
+            )
+
+    def save_visibility(self, record: VisibilityRecord) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO visibility_records VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    record.id,
+                    record.object_type,
+                    record.object_id,
+                    record.visibility,
+                    record.lifecycle_status,
+                    record.updated_at.isoformat(),
+                ),
+            )
+
+    def get_visibility(self, object_type: GraphNodeType, object_id: str) -> VisibilityRecord | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM visibility_records WHERE object_type = ? AND object_id = ?", (object_type, object_id)
+            ).fetchone()
+        return (
+            VisibilityRecord(
+                id=row["id"],
+                object_type=GraphNodeType(row["object_type"]),
+                object_id=row["object_id"],
+                visibility=DataVisibility(row["visibility"]),
+                lifecycle_status=DataLifecycleStatus(row["lifecycle_status"]),
+                updated_at=datetime.fromisoformat(row["updated_at"]),
+            )
+            if row
+            else None
+        )
+
+    def save_system_feedback(self, feedback: SystemFeedback) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO system_feedback VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    feedback.id,
+                    feedback.feature,
+                    feedback.feedback_type,
+                    feedback.rating,
+                    feedback.description,
+                    feedback.related_action,
+                    feedback.created_at.isoformat(),
+                ),
+            )
+
+    def feature_performance(self, feature: str) -> FeaturePerformance:
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT COUNT(*) usage, COALESCE(SUM(CASE WHEN rating >= 4 THEN 1 ELSE 0 END), 0) success,
+                COALESCE(SUM(rating), 0) satisfaction, COUNT(rating) ratings FROM system_feedback WHERE feature = ?""",
+                (feature,),
+            ).fetchone()
+            modes = conn.execute(
+                "SELECT feedback_type FROM system_feedback WHERE feature = ? AND rating IS NOT NULL AND rating <= 2",
+                (feature,),
+            ).fetchall()
+        return FeaturePerformance(
+            feature=feature,
+            usage_count=row["usage"],
+            successful_count=row["success"],
+            satisfaction_sum=row["satisfaction"],
+            feedback_count=row["ratings"],
+            failure_modes=[item["feedback_type"] for item in modes],
+        )
+
+    def save_improvement(self, proposal: ImprovementProposal) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO improvement_proposals VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    proposal.id,
+                    proposal.problem,
+                    json.dumps(proposal.feedback_ids),
+                    proposal.proposal,
+                    proposal.priority,
+                    proposal.status,
+                    proposal.created_at.isoformat(),
+                ),
+            )
+
+    def get_improvement(self, proposal_id: str) -> ImprovementProposal | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM improvement_proposals WHERE id = ?", (proposal_id,)).fetchone()
+        return (
+            ImprovementProposal(
+                id=row["id"],
+                problem=row["problem"],
+                feedback_ids=json.loads(row["feedback_ids"]),
+                proposal=row["proposal"],
+                priority=row["priority"],
+                status=ImprovementStatus(row["status"]),
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            if row
+            else None
+        )
+
+    def save_experiment(self, experiment: EvolutionExperiment) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO evolution_experiments VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    experiment.id,
+                    experiment.proposal_id,
+                    experiment.objective,
+                    experiment.change_description,
+                    json.dumps(experiment.metrics),
+                    experiment.result,
+                    experiment.status,
+                ),
+            )
 
     @staticmethod
     def _task(row: sqlite3.Row) -> DiscoveryTask:

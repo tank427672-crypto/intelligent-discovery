@@ -22,6 +22,7 @@ Intelligent Discovery 是一个长期演进的开放式工程，而不是自动�
 - [案例智能基础](docs/CASE_INTELLIGENCE.md)：案例资产、版本、验证、跨任务关联与未来插件边界。
 - [知识图谱与决策基础](docs/KNOWLEDGE_GRAPH.md)：概念、证据关系、反思与决策契约边界。
 - [智能发现检索基础](docs/DISCOVERY_INTELLIGENCE.md)：本地搜索、目录、分类、反馈与受限推荐边界。
+- [信任、治理与演进基础](docs/TRUST_GOVERNANCE.md)：可见性、审核、功能反馈和人工批准的演进边界。
 - [架构说明](docs/ARCHITECTURE.md)：分层、依赖方向与模块边界。
 - [模块与扩展](docs/EXTENSIBILITY.md)：已规划生态能力及接入约束。
 - [开发路线](docs/ROADMAP.md)：阶段目标与非目标。

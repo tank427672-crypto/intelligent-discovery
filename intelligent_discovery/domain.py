@@ -131,6 +131,40 @@ class HelpRequestStatus(StrEnum):
     CLOSED = "closed"
 
 
+class DataVisibility(StrEnum):
+    PRIVATE = "private"
+    SHARED = "shared"
+    PUBLIC = "public"
+
+
+class DataLifecycleStatus(StrEnum):
+    CREATED = "created"
+    UNDER_REVIEW = "under_review"
+    PUBLISHED = "published"
+    REVISED = "revised"
+    ARCHIVED = "archived"
+    DELETED = "deleted"
+
+
+class ReviewDecision(StrEnum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    NEEDS_REVISION = "needs_revision"
+
+
+class ImprovementStatus(StrEnum):
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    IMPLEMENTED = "implemented"
+    REJECTED = "rejected"
+
+
+class ExperimentStatus(StrEnum):
+    PLANNED = "planned"
+    REVIEWED = "reviewed"
+    COMPLETED = "completed"
+
+
 @dataclass(slots=True)
 class DiscoveryTask:
     question: str
@@ -486,4 +520,88 @@ class CommunityContribution:
     source_url: str
     evidence_excerpt: str = ""
     verification_status: str = "pending"
+    id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@dataclass(slots=True)
+class GovernanceRecord:
+    object_type: GraphNodeType
+    object_id: str
+    action: str
+    reason: str
+    actor_reference: str = "human"
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class ReviewRecord:
+    object_type: GraphNodeType
+    object_id: str
+    reviewer_reference: str
+    decision: ReviewDecision
+    reason: str
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.reason.strip():
+            raise ValueError("review reason is required")
+
+
+@dataclass(slots=True)
+class VisibilityRecord:
+    object_type: GraphNodeType
+    object_id: str
+    visibility: DataVisibility
+    lifecycle_status: DataLifecycleStatus = DataLifecycleStatus.CREATED
+    id: str = field(default_factory=lambda: str(uuid4()))
+    updated_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class SystemFeedback:
+    feature: str
+    feedback_type: str
+    rating: int | None
+    description: str
+    related_action: str = ""
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if self.rating is not None and not 1 <= self.rating <= 5:
+            raise ValueError("feedback rating must be between 1 and 5")
+
+
+@dataclass(slots=True)
+class FeaturePerformance:
+    feature: str
+    usage_count: int = 0
+    successful_count: int = 0
+    satisfaction_sum: int = 0
+    feedback_count: int = 0
+    failure_modes: list[str] = field(default_factory=list)
+    id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@dataclass(slots=True)
+class ImprovementProposal:
+    problem: str
+    feedback_ids: list[str]
+    proposal: str
+    priority: str
+    status: ImprovementStatus = ImprovementStatus.PROPOSED
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class EvolutionExperiment:
+    proposal_id: str
+    objective: str
+    change_description: str
+    metrics: list[str]
+    result: str = ""
+    status: ExperimentStatus = ExperimentStatus.PLANNED
     id: str = field(default_factory=lambda: str(uuid4()))
