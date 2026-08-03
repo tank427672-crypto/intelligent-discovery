@@ -11,12 +11,12 @@
 
 高风险模块还需要契约、权限、隐私、滥用和性能测试。
 
-## 最近一次记录：2026-08-03（v0.4 Knowledge Graph + Decision Intelligence Foundation）
+## 最近一次记录：2026-08-03（v0.5 Discovery Intelligence Foundation）
 
 | 项目 | 结果 | 证据 |
 | --- | --- | --- |
 | Python 版本 | 通过 | Python 3.14.6 |
-| 单元/API/契约测试 | 通过 | 12 passed |
+| 单元/API/契约测试 | 通过 | 13 passed |
 | 编译检查 | 通过 | `compileall` 退出码 0 |
 | 静态检查 | 通过 | `ruff check .`：All checks passed |
 

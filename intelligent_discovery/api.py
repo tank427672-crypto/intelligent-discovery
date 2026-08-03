@@ -12,6 +12,9 @@ from .domain import (
     CaseRecord,
     CaseTaskRelation,
     CaseVerificationStatus,
+    Classification,
+    ClassificationSource,
+    ClassificationStatus,
     EvidenceRelation,
     EvidenceStatus,
     FeedbackVerdict,
@@ -20,20 +23,29 @@ from .domain import (
     ReflectionRecord,
     ReflectionStatus,
     RelationshipType,
+    SearchFeedback,
     SourceStatus,
     SourceType,
     TrustLevel,
 )
 from .repository import SQLiteRepository
-from .services import CaseService, DiscoveryService, KnowledgeGraphService, NotFoundError, ReportRenderer
+from .services import (
+    CaseService,
+    DiscoveryIntelligenceService,
+    DiscoveryService,
+    KnowledgeGraphService,
+    NotFoundError,
+    ReportRenderer,
+)
 
 database_path = Path(os.getenv("ID_DATABASE_PATH", "data/intelligent_discovery.db"))
 service = DiscoveryService(SQLiteRepository(database_path))
 case_service = CaseService(service.repository)
 graph_service = KnowledgeGraphService(service.repository)
+discovery_intelligence = DiscoveryIntelligenceService(service.repository)
 renderer = ReportRenderer()
 app = FastAPI(
-    title="Intelligent Discovery", version="0.4.0", description="Evidence-led discovery and decision support."
+    title="Intelligent Discovery", version="0.5.0", description="Evidence-led discovery and decision support."
 )
 
 
@@ -149,6 +161,34 @@ class ReflectionInput(BaseModel):
     status: ReflectionStatus = ReflectionStatus.OBSERVED
 
 
+class CategoryInput(BaseModel):
+    name: str = Field(min_length=1, max_length=500)
+    category_type: str = Field(min_length=1, max_length=200)
+    parent_id: str | None = None
+
+
+class TagInput(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+class ClassificationInput(BaseModel):
+    object_type: GraphNodeType
+    object_id: str
+    category_id: str | None = None
+    tag_id: str | None = None
+    confidence: float = Field(ge=0, le=1)
+    source: ClassificationSource = ClassificationSource.HUMAN
+    status: ClassificationStatus = ClassificationStatus.PROPOSED
+
+
+class SearchFeedbackInput(BaseModel):
+    search_query_id: str
+    result_type: GraphNodeType
+    result_id: str
+    useful: bool
+    comment: str = Field(default="", max_length=2000)
+
+
 def serialize(value: object) -> dict[str, object]:
     data = asdict(value)
     return {
@@ -168,7 +208,7 @@ def translate(action):
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.4.0"}
+    return {"status": "ok", "version": "0.5.0"}
 
 
 @app.post("/tasks", status_code=status.HTTP_201_CREATED)
@@ -327,6 +367,53 @@ def create_reflection(payload: ReflectionInput) -> dict[str, object]:
 def list_reflections(case_id: str) -> list[dict[str, object]]:
     translate(lambda: case_service.get_case(case_id))
     return [serialize(item) for item in service.repository.list_reflections(case_id)]
+
+
+@app.post("/catalog/categories", status_code=status.HTTP_201_CREATED)
+def create_category(payload: CategoryInput) -> dict[str, object]:
+    return serialize(
+        translate(
+            lambda: discovery_intelligence.create_category(payload.name, payload.category_type, payload.parent_id)
+        )
+    )
+
+
+@app.get("/catalog/categories")
+def list_categories() -> list[dict[str, object]]:
+    return [serialize(item) for item in service.repository.list_categories()]
+
+
+@app.post("/catalog/tags", status_code=status.HTTP_201_CREATED)
+def create_tag(payload: TagInput) -> dict[str, object]:
+    return serialize(translate(lambda: discovery_intelligence.create_tag(payload.name)))
+
+
+@app.post("/classifications", status_code=status.HTTP_201_CREATED)
+def create_classification(payload: ClassificationInput) -> dict[str, object]:
+    return serialize(translate(lambda: discovery_intelligence.classify(Classification(**payload.model_dump()))))
+
+
+@app.get("/search")
+def search(query: str) -> dict[str, object]:
+    search_query, results = translate(lambda: discovery_intelligence.search(query))
+    return {
+        "query": serialize(search_query),
+        "results": [
+            {
+                **result,
+                "relationships": [serialize(item) for item in result["relationships"]],
+                "classifications": [serialize(item) for item in result["classifications"]],
+            }
+            for result in results
+        ],
+    }
+
+
+@app.post("/search/feedback", status_code=status.HTTP_201_CREATED)
+def search_feedback(payload: SearchFeedbackInput) -> dict[str, object]:
+    return serialize(
+        translate(lambda: discovery_intelligence.add_search_feedback(SearchFeedback(**payload.model_dump())))
+    )
 
 
 @app.post("/tasks/{task_id}/analyze")

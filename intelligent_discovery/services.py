@@ -8,6 +8,8 @@ from .domain import (
     CaseRevision,
     CaseTaskLink,
     CaseTaskRelation,
+    Category,
+    Classification,
     Concept,
     DiscoveryTask,
     Evidence,
@@ -19,12 +21,16 @@ from .domain import (
     FindingKind,
     GraphNodeType,
     KnowledgeRecord,
+    RecommendationRecord,
     ReflectionRecord,
     Relationship,
     RelationshipType,
+    SearchFeedback,
+    SearchQuery,
     Source,
     SourceStatus,
     SourceType,
+    Tag,
     TaskStatus,
     TrustLevel,
     utc_now,
@@ -462,3 +468,64 @@ class KnowledgeGraphService:
             raise ValueError("reflection evidence must belong to the case origin task")
         self.repository.save_reflection(reflection)
         return reflection
+
+
+class DiscoveryIntelligenceService:
+    """Explores existing assets with explicit evidence boundaries, never web search or black-box ranking."""
+
+    def __init__(self, repository: DiscoveryRepository) -> None:
+        self.repository = repository
+
+    def create_category(self, name: str, category_type: str, parent_id: str | None = None) -> Category:
+        if parent_id and not any(item.id == parent_id for item in self.repository.list_categories()):
+            raise ValueError("category parent must exist")
+        category = Category(name=name.strip(), category_type=category_type.strip(), parent_id=parent_id)
+        self.repository.save_category(category)
+        return category
+
+    def create_tag(self, name: str) -> Tag:
+        tag = Tag(name=name.strip())
+        self.repository.save_tag(tag)
+        return tag
+
+    def classify(self, classification: Classification) -> Classification:
+        if not self.repository.entity_exists(classification.object_type, classification.object_id):
+            raise ValueError("classified object must exist")
+        if classification.category_id and not any(
+            item.id == classification.category_id for item in self.repository.list_categories()
+        ):
+            raise ValueError("classification category must exist")
+        if classification.tag_id and not any(item.id == classification.tag_id for item in self.repository.list_tags()):
+            raise ValueError("classification tag must exist")
+        self.repository.save_classification(classification)
+        return classification
+
+    def search(self, text: str) -> tuple[SearchQuery, list[dict[str, object]]]:
+        if not text.strip():
+            raise ValueError("search query is required")
+        query = SearchQuery(query=text.strip())
+        self.repository.save_search_query(query)
+        results = self.repository.search_assets(query.query)
+        for result in results:
+            result["relationships"] = self.repository.list_relationships(
+                GraphNodeType(result["kind"]), str(result["id"])
+            )
+            result["classifications"] = self.repository.list_classifications(
+                GraphNodeType(result["kind"]), str(result["id"])
+            )
+            result["limitations"] = "仅检索本地已记录资产；不代表完整世界信息。"
+        return query, results
+
+    def add_search_feedback(self, feedback: SearchFeedback) -> SearchFeedback:
+        if not self.repository.entity_exists(feedback.result_type, feedback.result_id):
+            raise ValueError("search feedback result must exist")
+        self.repository.save_search_feedback(feedback)
+        return feedback
+
+    def record_recommendation(self, recommendation: RecommendationRecord) -> RecommendationRecord:
+        if not self.repository.entity_exists(recommendation.object_type, recommendation.object_id):
+            raise ValueError("recommendation object must exist")
+        if not recommendation.reason.strip():
+            raise ValueError("recommendation reason is required")
+        self.repository.save_recommendation(recommendation)
+        return recommendation

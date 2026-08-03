@@ -12,6 +12,10 @@ from .domain import (
     CaseTaskLink,
     CaseTaskRelation,
     CaseVerificationStatus,
+    Category,
+    Classification,
+    ClassificationSource,
+    ClassificationStatus,
     Concept,
     DiscoveryTask,
     Evidence,
@@ -23,13 +27,17 @@ from .domain import (
     FindingKind,
     GraphNodeType,
     KnowledgeRecord,
+    RecommendationRecord,
     ReflectionRecord,
     ReflectionStatus,
     Relationship,
     RelationshipType,
+    SearchFeedback,
+    SearchQuery,
     Source,
     SourceStatus,
     SourceType,
+    Tag,
     TaskStatus,
     TrustLevel,
 )
@@ -124,6 +132,29 @@ class SQLiteRepository:
                     actual_outcome TEXT NOT NULL, deviation TEXT NOT NULL, cause_analysis TEXT NOT NULL,
                     learning_update TEXT NOT NULL, evidence_ids TEXT NOT NULL, status TEXT NOT NULL,
                     created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(case_id) REFERENCES cases(id)
+                );
+                CREATE TABLE IF NOT EXISTS categories (
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, category_type TEXT NOT NULL,
+                    parent_id TEXT, created_at TEXT NOT NULL, UNIQUE(name, category_type)
+                );
+                CREATE TABLE IF NOT EXISTS tags (
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS classifications (
+                    id TEXT PRIMARY KEY, object_type TEXT NOT NULL, object_id TEXT NOT NULL,
+                    category_id TEXT, tag_id TEXT, confidence REAL NOT NULL, source TEXT NOT NULL,
+                    status TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS search_queries (
+                    id TEXT PRIMARY KEY, query TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS search_feedback (
+                    id TEXT PRIMARY KEY, search_query_id TEXT NOT NULL, result_type TEXT NOT NULL,
+                    result_id TEXT NOT NULL, useful INTEGER NOT NULL, comment TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS recommendation_records (
+                    id TEXT PRIMARY KEY, object_type TEXT NOT NULL, object_id TEXT NOT NULL, reason TEXT NOT NULL,
+                    evidence_ids TEXT NOT NULL, case_ids TEXT NOT NULL, feedback TEXT NOT NULL, created_at TEXT NOT NULL
                 );
             """)
             self._migrate_source_columns(conn)
@@ -474,6 +505,135 @@ class SQLiteRepository:
                 "SELECT * FROM reflection_records WHERE case_id = ? ORDER BY created_at", (case_id,)
             ).fetchall()
         return [self._reflection(row) for row in rows]
+
+    def save_category(self, category: Category) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO categories VALUES (?, ?, ?, ?, ?)",
+                (
+                    category.id,
+                    category.name,
+                    category.category_type,
+                    category.parent_id,
+                    category.created_at.isoformat(),
+                ),
+            )
+
+    def list_categories(self) -> list[Category]:
+        with self.connect() as conn:
+            rows = conn.execute("SELECT * FROM categories ORDER BY category_type, name").fetchall()
+        return [
+            Category(
+                id=row["id"],
+                name=row["name"],
+                category_type=row["category_type"],
+                parent_id=row["parent_id"],
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    def save_tag(self, tag: Tag) -> None:
+        with self.connect() as conn:
+            conn.execute("INSERT INTO tags VALUES (?, ?, ?)", (tag.id, tag.name, tag.created_at.isoformat()))
+
+    def list_tags(self) -> list[Tag]:
+        with self.connect() as conn:
+            rows = conn.execute("SELECT * FROM tags ORDER BY name").fetchall()
+        return [
+            Tag(id=row["id"], name=row["name"], created_at=datetime.fromisoformat(row["created_at"])) for row in rows
+        ]
+
+    def save_classification(self, classification: Classification) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO classifications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    classification.id,
+                    classification.object_type,
+                    classification.object_id,
+                    classification.category_id,
+                    classification.tag_id,
+                    classification.confidence,
+                    classification.source,
+                    classification.status,
+                    classification.created_at.isoformat(),
+                ),
+            )
+
+    def list_classifications(self, object_type: GraphNodeType, object_id: str) -> list[Classification]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM classifications WHERE object_type = ? AND object_id = ? ORDER BY created_at",
+                (object_type, object_id),
+            ).fetchall()
+        return [
+            Classification(
+                id=row["id"],
+                object_type=GraphNodeType(row["object_type"]),
+                object_id=row["object_id"],
+                category_id=row["category_id"],
+                tag_id=row["tag_id"],
+                confidence=row["confidence"],
+                source=ClassificationSource(row["source"]),
+                status=ClassificationStatus(row["status"]),
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    def save_search_query(self, query: SearchQuery) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO search_queries VALUES (?, ?, ?)", (query.id, query.query, query.created_at.isoformat())
+            )
+
+    def save_search_feedback(self, feedback: SearchFeedback) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO search_feedback VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    feedback.id,
+                    feedback.search_query_id,
+                    feedback.result_type,
+                    feedback.result_id,
+                    feedback.useful,
+                    feedback.comment,
+                    feedback.created_at.isoformat(),
+                ),
+            )
+
+    def save_recommendation(self, recommendation: RecommendationRecord) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO recommendation_records VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    recommendation.id,
+                    recommendation.object_type,
+                    recommendation.object_id,
+                    recommendation.reason,
+                    json.dumps(recommendation.evidence_ids),
+                    json.dumps(recommendation.case_ids),
+                    recommendation.feedback,
+                    recommendation.created_at.isoformat(),
+                ),
+            )
+
+    def search_assets(self, query: str) -> list[dict[str, object]]:
+        pattern = f"%{query}%"
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT 'concept' AS kind, id, name AS title, description AS summary
+                FROM concepts WHERE name LIKE ? OR description LIKE ?
+                UNION ALL SELECT 'case', id, name, lessons_learned
+                FROM cases WHERE name LIKE ? OR lessons_learned LIKE ?
+                UNION ALL SELECT 'finding', id, statement, rationale
+                FROM findings WHERE statement LIKE ? OR rationale LIKE ?
+                UNION ALL SELECT 'knowledge', id, title, summary
+                FROM knowledge_records WHERE title LIKE ? OR summary LIKE ?""",
+                (pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     @staticmethod
     def _task(row: sqlite3.Row) -> DiscoveryTask:

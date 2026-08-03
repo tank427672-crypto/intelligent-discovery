@@ -112,6 +112,25 @@ class ReflectionStatus(StrEnum):
     REVIEWED = "reviewed"
 
 
+class ClassificationStatus(StrEnum):
+    PROPOSED = "proposed"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+
+
+class ClassificationSource(StrEnum):
+    HUMAN = "human"
+    AI_SUGGESTION = "ai_suggestion"
+    RULE = "rule"
+
+
+class HelpRequestStatus(StrEnum):
+    OPEN = "open"
+    IN_RESEARCH = "in_research"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
 @dataclass(slots=True)
 class DiscoveryTask:
     question: str
@@ -357,3 +376,114 @@ class ReflectionRecord:
         )
         if not all(value.strip() for value in required):
             raise ValueError("reflection requires judgment, outcome, deviation, cause analysis and learning update")
+
+
+@dataclass(slots=True)
+class Category:
+    name: str
+    category_type: str
+    parent_id: str | None = None
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.name.strip() or not self.category_type.strip():
+            raise ValueError("category name and type are required")
+
+
+@dataclass(slots=True)
+class Tag:
+    name: str
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("tag name is required")
+
+
+@dataclass(slots=True)
+class Classification:
+    object_type: GraphNodeType
+    object_id: str
+    category_id: str | None = None
+    tag_id: str | None = None
+    confidence: float = 0.0
+    source: ClassificationSource = ClassificationSource.HUMAN
+    status: ClassificationStatus = ClassificationStatus.PROPOSED
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not (self.category_id or self.tag_id):
+            raise ValueError("classification requires a category or tag")
+        if not 0 <= self.confidence <= 1:
+            raise ValueError("classification confidence must be between 0 and 1")
+
+
+@dataclass(slots=True)
+class SearchQuery:
+    query: str
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class SearchFeedback:
+    search_query_id: str
+    result_type: GraphNodeType
+    result_id: str
+    useful: bool
+    comment: str = ""
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class RecommendationRecord:
+    object_type: GraphNodeType
+    object_id: str
+    reason: str
+    evidence_ids: list[str] = field(default_factory=list)
+    case_ids: list[str] = field(default_factory=list)
+    feedback: str = ""
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class PersonalDiscoverySpace:
+    owner_reference: str
+    consented: bool
+    focus_category_ids: list[str] = field(default_factory=list)
+    saved_object_ids: list[str] = field(default_factory=list)
+    id: str = field(default_factory=lambda: str(uuid4()))
+
+    def __post_init__(self) -> None:
+        if not self.consented:
+            raise ValueError("personal discovery space requires explicit consent")
+
+
+@dataclass(slots=True)
+class HelpRequest:
+    question: str
+    background: str
+    goal: str
+    constraints: str
+    category_ids: list[str] = field(default_factory=list)
+    tag_ids: list[str] = field(default_factory=list)
+    status: HelpRequestStatus = HelpRequestStatus.OPEN
+    attention_count: int = 0
+    resolution: str = ""
+    related_knowledge_ids: list[str] = field(default_factory=list)
+    id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@dataclass(slots=True)
+class CommunityContribution:
+    contributor_reference: str
+    content_summary: str
+    source_url: str
+    evidence_excerpt: str = ""
+    verification_status: str = "pending"
+    id: str = field(default_factory=lambda: str(uuid4()))
