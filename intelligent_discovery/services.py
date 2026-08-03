@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from .domain import (
+    CaseLifecycleStatus,
+    CaseRecord,
+    CaseRevision,
+    CaseTaskLink,
+    CaseTaskRelation,
     DiscoveryTask,
     Evidence,
     EvidenceRelation,
@@ -15,12 +22,127 @@ from .domain import (
     SourceType,
     TaskStatus,
     TrustLevel,
+    utc_now,
 )
 from .ports import DiscoveryRepository
 
 
 class NotFoundError(LookupError):
     pass
+
+
+class CaseService:
+    """Application service for verified, versioned case knowledge assets."""
+
+    def __init__(self, repository: DiscoveryRepository) -> None:
+        self.repository = repository
+
+    def create_case(self, case: CaseRecord) -> CaseRecord:
+        self._validate_case_links(case)
+        self.repository.save_case(case)
+        self.repository.save_case_revision(
+            CaseRevision(
+                case_id=case.id,
+                version=case.version,
+                summary="Initial case record",
+                change_reason="case created",
+                changed_fields=["initial_record"],
+            )
+        )
+        self.link_case_to_task(case.id, case.origin_task_id, CaseTaskRelation.DISCOVERED_IN)
+        return case
+
+    def get_case(self, case_id: str) -> CaseRecord:
+        case = self.repository.get_case(case_id)
+        if not case:
+            raise NotFoundError(f"case {case_id} was not found")
+        return case
+
+    def revise_case(self, case_id: str, change_reason: str, **changes: object) -> CaseRecord:
+        current = self.get_case(case_id)
+        if not change_reason.strip():
+            raise ValueError("case change_reason is required")
+        allowed = {
+            "background",
+            "problem",
+            "solution",
+            "outcome",
+            "success_factors",
+            "failure_factors",
+            "lessons_learned",
+            "applicability",
+            "limitations",
+            "license_info",
+            "credibility",
+            "verification_status",
+        }
+        unknown = set(changes) - allowed
+        if unknown:
+            raise ValueError(f"case fields cannot be revised: {', '.join(sorted(unknown))}")
+        changed = {
+            name: value for name, value in changes.items() if value is not None and value != getattr(current, name)
+        }
+        if not changed:
+            raise ValueError("case revision must change at least one field")
+        updated = replace(current, **changed, version=current.version + 1, updated_at=utc_now())
+        self._validate_case_links(updated)
+        self.repository.save_case(updated)
+        self.repository.save_case_revision(
+            CaseRevision(
+                case_id=updated.id,
+                version=updated.version,
+                summary="Case record revised",
+                change_reason=change_reason.strip(),
+                changed_fields=sorted(changed),
+            )
+        )
+        return updated
+
+    def transition_case(self, case_id: str, status: CaseLifecycleStatus) -> CaseRecord:
+        current = self.get_case(case_id)
+        case = replace(current, version=current.version + 1, updated_at=utc_now())
+        case.transition_to(status)
+        self.repository.save_case(case)
+        self.repository.save_case_revision(
+            CaseRevision(
+                case_id=case.id,
+                version=case.version,
+                summary=f"Lifecycle changed to {status}",
+                change_reason="case lifecycle transition",
+                changed_fields=["lifecycle_status"],
+            )
+        )
+        return case
+
+    def link_case_to_task(self, case_id: str, task_id: str, relation: CaseTaskRelation, note: str = "") -> CaseTaskLink:
+        self.get_case(case_id)
+        if not self.repository.get_task(task_id):
+            raise NotFoundError(f"task {task_id} was not found")
+        link = CaseTaskLink(case_id=case_id, task_id=task_id, relation=relation, note=note.strip())
+        self.repository.save_case_task_link(link)
+        return link
+
+    def cases_for_task(self, task_id: str) -> list[CaseRecord]:
+        if not self.repository.get_task(task_id):
+            raise NotFoundError(f"task {task_id} was not found")
+        return self.repository.list_cases(task_id)
+
+    def revisions(self, case_id: str) -> list[CaseRevision]:
+        self.get_case(case_id)
+        return self.repository.list_case_revisions(case_id)
+
+    def _validate_case_links(self, case: CaseRecord) -> None:
+        if not self.repository.get_task(case.origin_task_id):
+            raise NotFoundError(f"task {case.origin_task_id} was not found")
+        sources = {source.id for source in self.repository.list_sources(case.origin_task_id)}
+        evidence = {item.id for item in self.repository.list_evidence(case.origin_task_id)}
+        findings = {item.id for item in self.repository.list_findings(case.origin_task_id)}
+        if any(item not in sources for item in case.source_ids):
+            raise ValueError("case source_ids must reference sources from its origin task")
+        if any(item not in evidence for item in case.evidence_ids):
+            raise ValueError("case evidence_ids must reference evidence from its origin task")
+        if any(item not in findings for item in case.finding_ids):
+            raise ValueError("case finding_ids must reference findings from its origin task")
 
 
 class DiscoveryService:
@@ -198,6 +320,7 @@ class ReportRenderer:
         evidence: list[Evidence],
         findings: list[Finding],
         feedback: list[FindingFeedback],
+        cases: list[CaseRecord] | None = None,
     ) -> str:
         by_kind = {kind: [f for f in findings if f.kind == kind] for kind in FindingKind}
         lines = [
@@ -250,5 +373,14 @@ class ReportRenderer:
         lines.extend(f"- {item.verdict}：{item.comment}（{item.reviewer_label}）" for item in feedback)
         if not feedback:
             lines.append("- 尚无人工复核反馈。")
+        lines.extend(["", "## 关联案例"])
+        if cases:
+            lines.extend(
+                f"- {item.name}（{item.case_type}；状态：{item.lifecycle_status}/"
+                f"{item.verification_status}；可信度 {item.credibility:.0%}；版本 {item.version}）"
+                for item in cases
+            )
+        else:
+            lines.append("- 尚无关联案例。")
         lines.extend(["", "## 下一步", "- 复核关键来源，补充未知项，并由用户基于证据作出决策。", ""])
         return "\n".join(lines)

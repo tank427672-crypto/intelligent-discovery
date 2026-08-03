@@ -61,8 +61,8 @@ MODULE_CATALOGUE: tuple[ModuleDefinition, ...] = (
         "case-intelligence",
         "Case Intelligence",
         Capability.CASE_INTELLIGENCE,
-        "future",
-        "Learns structured lessons from cases.",
+        "v0.3",
+        "Builds verified, versioned knowledge assets from cases.",
     ),
     ModuleDefinition(
         "community", "Community System", Capability.COMMUNITY, "future", "Supports review, sharing, and collaboration."

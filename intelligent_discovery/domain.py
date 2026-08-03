@@ -65,6 +65,27 @@ class FeedbackVerdict(StrEnum):
     NEEDS_REVISION = "needs_revision"
 
 
+class CaseLifecycleStatus(StrEnum):
+    CANDIDATE = "candidate"
+    TRACKED = "tracked"
+    VERIFIED = "verified"
+    MATURE = "mature"
+    HISTORICAL = "historical"
+
+
+class CaseVerificationStatus(StrEnum):
+    PENDING = "pending"
+    VERIFIED = "verified"
+    DISPUTED = "disputed"
+    REJECTED = "rejected"
+
+
+class CaseTaskRelation(StrEnum):
+    DISCOVERED_IN = "discovered_in"
+    REFERENCED_BY = "referenced_by"
+    APPLIED_TO = "applied_to"
+
+
 @dataclass(slots=True)
 class DiscoveryTask:
     question: str
@@ -161,5 +182,78 @@ class KnowledgeRecord:
     task_id: str
     title: str
     summary: str
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class CaseRecord:
+    origin_task_id: str
+    name: str
+    case_type: str
+    background: str
+    problem: str
+    solution: str
+    outcome: str
+    success_factors: str
+    failure_factors: str
+    lessons_learned: str
+    applicability: str
+    limitations: str
+    source_ids: list[str]
+    evidence_ids: list[str] = field(default_factory=list)
+    finding_ids: list[str] = field(default_factory=list)
+    license_info: str = "unknown"
+    lifecycle_status: CaseLifecycleStatus = CaseLifecycleStatus.CANDIDATE
+    verification_status: CaseVerificationStatus = CaseVerificationStatus.PENDING
+    credibility: float = 0.0
+    id: str = field(default_factory=lambda: str(uuid4()))
+    version: int = 1
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.name.strip() or not self.case_type.strip():
+            raise ValueError("case name and type are required")
+        if not self.source_ids:
+            raise ValueError("cases must reference at least one source")
+        if not 0 <= self.credibility <= 1:
+            raise ValueError("case credibility must be between 0 and 1")
+
+    def transition_to(self, status: CaseLifecycleStatus) -> None:
+        allowed = {
+            CaseLifecycleStatus.CANDIDATE: {CaseLifecycleStatus.TRACKED},
+            CaseLifecycleStatus.TRACKED: {CaseLifecycleStatus.VERIFIED},
+            CaseLifecycleStatus.VERIFIED: {CaseLifecycleStatus.MATURE},
+            CaseLifecycleStatus.MATURE: {CaseLifecycleStatus.HISTORICAL},
+            CaseLifecycleStatus.HISTORICAL: set(),
+        }
+        if status not in allowed[self.lifecycle_status]:
+            raise ValueError(f"Cannot transition case from {self.lifecycle_status} to {status}")
+        if status in {CaseLifecycleStatus.VERIFIED, CaseLifecycleStatus.MATURE} and (
+            self.verification_status != CaseVerificationStatus.VERIFIED
+        ):
+            raise ValueError("verified lifecycle states require verified case evidence")
+        self.lifecycle_status = status
+        self.updated_at = utc_now()
+
+
+@dataclass(slots=True)
+class CaseRevision:
+    case_id: str
+    version: int
+    summary: str
+    change_reason: str
+    changed_fields: list[str]
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class CaseTaskLink:
+    case_id: str
+    task_id: str
+    relation: CaseTaskRelation
+    note: str = ""
     id: str = field(default_factory=lambda: str(uuid4()))
     created_at: datetime = field(default_factory=utc_now)

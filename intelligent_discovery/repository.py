@@ -6,6 +6,12 @@ from datetime import datetime
 from pathlib import Path
 
 from .domain import (
+    CaseLifecycleStatus,
+    CaseRecord,
+    CaseRevision,
+    CaseTaskLink,
+    CaseTaskRelation,
+    CaseVerificationStatus,
     DiscoveryTask,
     Evidence,
     EvidenceRelation,
@@ -74,9 +80,31 @@ class SQLiteRepository:
                     summary TEXT NOT NULL, created_at TEXT NOT NULL,
                     FOREIGN KEY(task_id) REFERENCES tasks(id)
                 );
+                CREATE TABLE IF NOT EXISTS cases (
+                    id TEXT PRIMARY KEY, origin_task_id TEXT NOT NULL, name TEXT NOT NULL, case_type TEXT NOT NULL,
+                    background TEXT NOT NULL, problem TEXT NOT NULL, solution TEXT NOT NULL,
+                    outcome TEXT NOT NULL, success_factors TEXT NOT NULL, failure_factors TEXT NOT NULL,
+                    lessons_learned TEXT NOT NULL, applicability TEXT NOT NULL, limitations TEXT NOT NULL,
+                    source_ids TEXT NOT NULL, evidence_ids TEXT NOT NULL, finding_ids TEXT NOT NULL,
+                    license_info TEXT NOT NULL, lifecycle_status TEXT NOT NULL,
+                    verification_status TEXT NOT NULL, credibility REAL NOT NULL, version INTEGER NOT NULL,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS case_revisions (
+                    id TEXT PRIMARY KEY, case_id TEXT NOT NULL, version INTEGER NOT NULL,
+                    summary TEXT NOT NULL, change_reason TEXT NOT NULL, changed_fields TEXT NOT NULL,
+                    created_at TEXT NOT NULL, FOREIGN KEY(case_id) REFERENCES cases(id)
+                );
+                CREATE TABLE IF NOT EXISTS case_task_links (
+                    id TEXT PRIMARY KEY, case_id TEXT NOT NULL, task_id TEXT NOT NULL,
+                    relation TEXT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL,
+                    UNIQUE(case_id, task_id, relation), FOREIGN KEY(case_id) REFERENCES cases(id),
+                    FOREIGN KEY(task_id) REFERENCES tasks(id)
+                );
             """)
             self._migrate_source_columns(conn)
             self._migrate_finding_columns(conn)
+            self._migrate_case_columns(conn)
 
     @staticmethod
     def _migrate_source_columns(conn: sqlite3.Connection) -> None:
@@ -98,6 +126,12 @@ class SQLiteRepository:
         existing = {row["name"] for row in conn.execute("PRAGMA table_info(findings)")}
         if "evidence_ids" not in existing:
             conn.execute("ALTER TABLE findings ADD COLUMN evidence_ids TEXT NOT NULL DEFAULT '[]'")
+
+    @staticmethod
+    def _migrate_case_columns(conn: sqlite3.Connection) -> None:
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(cases)")}
+        if "origin_task_id" not in existing:
+            conn.execute("ALTER TABLE cases ADD COLUMN origin_task_id TEXT NOT NULL DEFAULT ''")
 
     def save_task(self, task: DiscoveryTask) -> None:
         with self.connect() as conn:
@@ -235,6 +269,94 @@ class SQLiteRepository:
             for r in rows
         ]
 
+    def save_case(self, case: CaseRecord) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO cases (
+                    id, origin_task_id, name, case_type, background, problem, solution, outcome, success_factors,
+                    failure_factors, lessons_learned, applicability, limitations, source_ids, evidence_ids,
+                    finding_ids, license_info, lifecycle_status, verification_status, credibility, version,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    case.id,
+                    case.origin_task_id,
+                    case.name,
+                    case.case_type,
+                    case.background,
+                    case.problem,
+                    case.solution,
+                    case.outcome,
+                    case.success_factors,
+                    case.failure_factors,
+                    case.lessons_learned,
+                    case.applicability,
+                    case.limitations,
+                    json.dumps(case.source_ids),
+                    json.dumps(case.evidence_ids),
+                    json.dumps(case.finding_ids),
+                    case.license_info,
+                    case.lifecycle_status,
+                    case.verification_status,
+                    case.credibility,
+                    case.version,
+                    case.created_at.isoformat(),
+                    case.updated_at.isoformat(),
+                ),
+            )
+
+    def get_case(self, case_id: str) -> CaseRecord | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM cases WHERE id = ?", (case_id,)).fetchone()
+        return self._case(row) if row else None
+
+    def list_cases(self, task_id: str | None = None) -> list[CaseRecord]:
+        with self.connect() as conn:
+            if task_id:
+                rows = conn.execute(
+                    """SELECT cases.* FROM cases
+                    INNER JOIN case_task_links ON cases.id = case_task_links.case_id
+                    WHERE case_task_links.task_id = ? ORDER BY cases.updated_at DESC""",
+                    (task_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM cases ORDER BY updated_at DESC").fetchall()
+        return [self._case(row) for row in rows]
+
+    def save_case_revision(self, revision: CaseRevision) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO case_revisions VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    revision.id,
+                    revision.case_id,
+                    revision.version,
+                    revision.summary,
+                    revision.change_reason,
+                    json.dumps(revision.changed_fields),
+                    revision.created_at.isoformat(),
+                ),
+            )
+
+    def list_case_revisions(self, case_id: str) -> list[CaseRevision]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM case_revisions WHERE case_id = ? ORDER BY version", (case_id,)
+            ).fetchall()
+        return [self._case_revision(row) for row in rows]
+
+    def save_case_task_link(self, link: CaseTaskLink) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO case_task_links VALUES (?, ?, ?, ?, ?, ?)",
+                (link.id, link.case_id, link.task_id, link.relation, link.note, link.created_at.isoformat()),
+            )
+
+    def list_case_task_links(self, task_id: str) -> list[CaseTaskLink]:
+        with self.connect() as conn:
+            rows = conn.execute("SELECT * FROM case_task_links WHERE task_id = ?", (task_id,)).fetchall()
+        return [self._case_task_link(row) for row in rows]
+
     @staticmethod
     def _task(row: sqlite3.Row) -> DiscoveryTask:
         return DiscoveryTask(
@@ -302,5 +424,56 @@ class SQLiteRepository:
             verdict=FeedbackVerdict(row["verdict"]),
             comment=row["comment"],
             reviewer_label=row["reviewer_label"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    @staticmethod
+    def _case(row: sqlite3.Row) -> CaseRecord:
+        return CaseRecord(
+            id=row["id"],
+            origin_task_id=row["origin_task_id"],
+            name=row["name"],
+            case_type=row["case_type"],
+            background=row["background"],
+            problem=row["problem"],
+            solution=row["solution"],
+            outcome=row["outcome"],
+            success_factors=row["success_factors"],
+            failure_factors=row["failure_factors"],
+            lessons_learned=row["lessons_learned"],
+            applicability=row["applicability"],
+            limitations=row["limitations"],
+            source_ids=json.loads(row["source_ids"]),
+            evidence_ids=json.loads(row["evidence_ids"]),
+            finding_ids=json.loads(row["finding_ids"]),
+            license_info=row["license_info"],
+            lifecycle_status=CaseLifecycleStatus(row["lifecycle_status"]),
+            verification_status=CaseVerificationStatus(row["verification_status"]),
+            credibility=row["credibility"],
+            version=row["version"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )
+
+    @staticmethod
+    def _case_revision(row: sqlite3.Row) -> CaseRevision:
+        return CaseRevision(
+            id=row["id"],
+            case_id=row["case_id"],
+            version=row["version"],
+            summary=row["summary"],
+            change_reason=row["change_reason"],
+            changed_fields=json.loads(row["changed_fields"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    @staticmethod
+    def _case_task_link(row: sqlite3.Row) -> CaseTaskLink:
+        return CaseTaskLink(
+            id=row["id"],
+            case_id=row["case_id"],
+            task_id=row["task_id"],
+            relation=CaseTaskRelation(row["relation"]),
+            note=row["note"],
             created_at=datetime.fromisoformat(row["created_at"]),
         )

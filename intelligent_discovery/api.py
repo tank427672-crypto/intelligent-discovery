@@ -8,6 +8,10 @@ from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field, HttpUrl
 
 from .domain import (
+    CaseLifecycleStatus,
+    CaseRecord,
+    CaseTaskRelation,
+    CaseVerificationStatus,
     EvidenceRelation,
     EvidenceStatus,
     FeedbackVerdict,
@@ -17,13 +21,14 @@ from .domain import (
     TrustLevel,
 )
 from .repository import SQLiteRepository
-from .services import DiscoveryService, NotFoundError, ReportRenderer
+from .services import CaseService, DiscoveryService, NotFoundError, ReportRenderer
 
 database_path = Path(os.getenv("ID_DATABASE_PATH", "data/intelligent_discovery.db"))
 service = DiscoveryService(SQLiteRepository(database_path))
+case_service = CaseService(service.repository)
 renderer = ReportRenderer()
 app = FastAPI(
-    title="Intelligent Discovery", version="0.2.0", description="Evidence-led discovery and decision support."
+    title="Intelligent Discovery", version="0.3.0", description="Evidence-led discovery and decision support."
 )
 
 
@@ -69,6 +74,49 @@ class FeedbackInput(BaseModel):
     reviewer_label: str = Field(default="human", max_length=200)
 
 
+class CaseInput(BaseModel):
+    origin_task_id: str
+    name: str = Field(min_length=1, max_length=500)
+    case_type: str = Field(min_length=1, max_length=200)
+    background: str = Field(default="", max_length=10000)
+    problem: str = Field(default="", max_length=10000)
+    solution: str = Field(default="", max_length=10000)
+    outcome: str = Field(default="", max_length=10000)
+    success_factors: str = Field(default="", max_length=10000)
+    failure_factors: str = Field(default="", max_length=10000)
+    lessons_learned: str = Field(default="", max_length=10000)
+    applicability: str = Field(default="", max_length=10000)
+    limitations: str = Field(default="", max_length=10000)
+    source_ids: list[str] = Field(min_length=1)
+    evidence_ids: list[str] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list)
+    license_info: str = Field(default="unknown", max_length=500)
+    verification_status: CaseVerificationStatus = CaseVerificationStatus.PENDING
+    credibility: float = Field(default=0, ge=0, le=1)
+
+
+class CaseUpdateInput(BaseModel):
+    change_reason: str = Field(min_length=1, max_length=2000)
+    background: str | None = Field(default=None, max_length=10000)
+    problem: str | None = Field(default=None, max_length=10000)
+    solution: str | None = Field(default=None, max_length=10000)
+    outcome: str | None = Field(default=None, max_length=10000)
+    success_factors: str | None = Field(default=None, max_length=10000)
+    failure_factors: str | None = Field(default=None, max_length=10000)
+    lessons_learned: str | None = Field(default=None, max_length=10000)
+    applicability: str | None = Field(default=None, max_length=10000)
+    limitations: str | None = Field(default=None, max_length=10000)
+    license_info: str | None = Field(default=None, max_length=500)
+    credibility: float | None = Field(default=None, ge=0, le=1)
+    verification_status: CaseVerificationStatus | None = None
+
+
+class CaseLinkInput(BaseModel):
+    task_id: str
+    relation: CaseTaskRelation
+    note: str = Field(default="", max_length=2000)
+
+
 def serialize(value: object) -> dict[str, object]:
     data = asdict(value)
     return {
@@ -88,7 +136,7 @@ def translate(action):
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}
 
 
 @app.post("/tasks", status_code=status.HTTP_201_CREATED)
@@ -173,6 +221,44 @@ def add_feedback(task_id: str, payload: FeedbackInput) -> dict[str, object]:
     )
 
 
+@app.post("/cases", status_code=status.HTTP_201_CREATED)
+def create_case(payload: CaseInput) -> dict[str, object]:
+    case = CaseRecord(**payload.model_dump())
+    return serialize(translate(lambda: case_service.create_case(case)))
+
+
+@app.get("/cases")
+def list_cases(task_id: str | None = None) -> list[dict[str, object]]:
+    return [serialize(item) for item in service.repository.list_cases(task_id)]
+
+
+@app.get("/cases/{case_id}")
+def get_case(case_id: str) -> dict[str, object]:
+    case = translate(lambda: case_service.get_case(case_id))
+    return {
+        "case": serialize(case),
+        "revisions": [serialize(item) for item in case_service.revisions(case_id)],
+    }
+
+
+@app.patch("/cases/{case_id}")
+def revise_case(case_id: str, payload: CaseUpdateInput) -> dict[str, object]:
+    changes = payload.model_dump(exclude={"change_reason"}, exclude_none=True)
+    return serialize(translate(lambda: case_service.revise_case(case_id, payload.change_reason, **changes)))
+
+
+@app.post("/cases/{case_id}/lifecycle/{lifecycle_status}")
+def transition_case(case_id: str, lifecycle_status: CaseLifecycleStatus) -> dict[str, object]:
+    return serialize(translate(lambda: case_service.transition_case(case_id, lifecycle_status)))
+
+
+@app.post("/cases/{case_id}/links", status_code=status.HTTP_201_CREATED)
+def link_case(case_id: str, payload: CaseLinkInput) -> dict[str, object]:
+    return serialize(
+        translate(lambda: case_service.link_case_to_task(case_id, payload.task_id, payload.relation, payload.note))
+    )
+
+
 @app.post("/tasks/{task_id}/analyze")
 def analyze(task_id: str) -> dict[str, object]:
     return serialize(translate(lambda: service.analyze(task_id)))
@@ -187,7 +273,8 @@ def complete(task_id: str) -> dict[str, object]:
 def report(task_id: str) -> Response:
     task, sources, evidence, findings, feedback = translate(lambda: service.snapshot(task_id))
     return Response(
-        renderer.render(task, sources, evidence, findings, feedback), media_type="text/markdown; charset=utf-8"
+        renderer.render(task, sources, evidence, findings, feedback, case_service.cases_for_task(task_id)),
+        media_type="text/markdown; charset=utf-8",
     )
 
 
