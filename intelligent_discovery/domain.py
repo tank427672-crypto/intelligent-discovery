@@ -24,6 +24,47 @@ class FindingKind(StrEnum):
     UNKNOWN = "unknown"
 
 
+class SourceType(StrEnum):
+    WEB = "web"
+    DATABASE = "database"
+    API = "api"
+    OPEN_SOURCE = "open_source"
+    DOCUMENT = "document"
+    USER_PROVIDED = "user_provided"
+
+
+class TrustLevel(StrEnum):
+    PRIMARY = "primary"
+    CURATED = "curated"
+    SECONDARY = "secondary"
+    UNVERIFIED = "unverified"
+
+
+class SourceStatus(StrEnum):
+    ACCESSIBLE = "accessible"
+    UNAVAILABLE = "unavailable"
+    STALE = "stale"
+    UNVERIFIED = "unverified"
+
+
+class EvidenceRelation(StrEnum):
+    SUPPORTS = "supports"
+    CONTRADICTS = "contradicts"
+    CONTEXT = "context"
+
+
+class EvidenceStatus(StrEnum):
+    EXTRACTED = "extracted"
+    VERIFIED = "verified"
+    FAILED = "failed"
+
+
+class FeedbackVerdict(StrEnum):
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    NEEDS_REVISION = "needs_revision"
+
+
 @dataclass(slots=True)
 class DiscoveryTask:
     question: str
@@ -53,6 +94,12 @@ class Source:
     url: str
     excerpt: str
     credibility: float
+    source_type: SourceType = SourceType.USER_PROVIDED
+    trust_level: TrustLevel = TrustLevel.UNVERIFIED
+    status: SourceStatus = SourceStatus.UNVERIFIED
+    license_info: str = "unknown"
+    published_at: datetime | None = None
+    updated_at: datetime | None = None
     id: str = field(default_factory=lambda: str(uuid4()))
     collected_at: datetime = field(default_factory=utc_now)
 
@@ -62,12 +109,27 @@ class Source:
 
 
 @dataclass(slots=True)
+class Evidence:
+    task_id: str
+    source_id: str
+    claim: str
+    excerpt: str
+    locator: str
+    relation: EvidenceRelation = EvidenceRelation.SUPPORTS
+    status: EvidenceStatus = EvidenceStatus.EXTRACTED
+    limitations: str = ""
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
 class Finding:
     task_id: str
     statement: str
     kind: FindingKind
     confidence: float
     source_ids: list[str] = field(default_factory=list)
+    evidence_ids: list[str] = field(default_factory=list)
     rationale: str = ""
     id: str = field(default_factory=lambda: str(uuid4()))
     created_at: datetime = field(default_factory=utc_now)
@@ -75,8 +137,23 @@ class Finding:
     def __post_init__(self) -> None:
         if not 0 <= self.confidence <= 1:
             raise ValueError("confidence must be between 0 and 1")
-        if self.kind != FindingKind.UNKNOWN and not self.source_ids:
-            raise ValueError("findings must reference at least one source")
+        if self.kind != FindingKind.UNKNOWN and not (self.source_ids or self.evidence_ids):
+            raise ValueError("findings must reference at least one source or evidence item")
+
+
+@dataclass(slots=True)
+class FindingFeedback:
+    task_id: str
+    finding_id: str
+    verdict: FeedbackVerdict
+    comment: str
+    reviewer_label: str = "human"
+    id: str = field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.comment.strip():
+            raise ValueError("feedback comment is required")
 
 
 @dataclass(slots=True)
