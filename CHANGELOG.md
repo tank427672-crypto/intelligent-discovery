@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-08-04
+
+### Added
+
+- World Intelligence Acquisition Foundation：来源登记、连接器契约、候选事件验证状态机、新鲜度、趋势、Feed 和推荐数据输入。
+- 公共来源候选与已验证知识严格分离；未实现真实联网采集或自动发布。
+
 ## [0.9.3] - 2026-08-03
 
 ### Added
