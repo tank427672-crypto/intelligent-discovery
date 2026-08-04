@@ -68,7 +68,7 @@ evolution_service = EvolutionService(SQLiteEvolutionAdapter("data/evolution.db")
 observability_service = ObservabilityService(SQLiteObservabilityAdapter("data/observability.db"))
 beta_feedback_service = BetaFeedbackService(SQLiteBetaAdapter("data/beta.db"), observability_service)
 app = FastAPI(
-    title="Intelligent Discovery", version="0.9.5", description="Evidence-led discovery and decision support."
+    title="Intelligent Discovery", version="0.9.6", description="Evidence-led discovery and decision support."
 )
 
 

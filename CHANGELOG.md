@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-08-04
+
+### Added
+
+- Ecosystem Foundation：内容质量、探索关系、世界事件生命周期、默认关闭的生态 Port/Feature Flag/Permission Boundary 与 Web Beta 发布检查单。
+
 ### Added
 
 - Discovery Experience Foundation：内容宇宙、World/Personal Stream 隔离、兴趣、透明推荐说明、Following、价值反馈、人工精选与开发者沟通网关。

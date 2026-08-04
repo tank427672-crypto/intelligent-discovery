@@ -52,6 +52,12 @@
 
 未完成：Web UI、真实推荐算法、持久化收藏/关注、实时 Feed 和任何私人行为采集。
 
+## v0.9.6 — Ecosystem Foundation + Web Beta Release Candidate（完成：架构候选）
+
+完成：内容质量、探索关系、世界事件生命周期、生态 Port、默认关闭 Feature Flag、权限边界和 Web Beta 人工发布门禁。
+
+未完成：Web UI、生产认证、邀请机制、真实恢复演练、真实用户验证、实际连接器/通知/社区/支付/企业/AI Provider。此版本是工程候选，而非自动对外发布许可。
+
 ## v1.0 — Governed Ecosystem
 
 目标：经过治理评审后，逐步开放个人智能、推荐、机会雷达、社区贡献、企业服务和第三方扩展。

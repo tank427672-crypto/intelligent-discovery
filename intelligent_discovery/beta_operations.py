@@ -120,6 +120,23 @@ class TrustChecklist:
 
 
 @dataclass(slots=True)
+class WebBetaReleaseChecklist:
+    functionality: bool
+    security: bool
+    privacy: bool
+    copyright: bool
+    backup: bool
+    recovery: bool
+    permissions: bool
+    governance: bool
+    experience: bool
+    approved_by: str = ""
+
+    def release_ready(self) -> bool:
+        return all(asdict(self)[key] for key in asdict(self) if key != "approved_by") and bool(self.approved_by)
+
+
+@dataclass(slots=True)
 class DataAccessAudit:
     owner_id: str
     action: str

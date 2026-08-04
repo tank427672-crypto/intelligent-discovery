@@ -11,12 +11,12 @@
 
 高风险模块还需要契约、权限、隐私、滥用和性能测试。
 
-## 最近一次记录：2026-08-04（v0.9.5 Discovery Experience Foundation）
+## 最近一次记录：2026-08-04（v0.9.6 Ecosystem Foundation + Web Beta RC）
 
 | 项目 | 结果 | 证据 |
 | --- | --- | --- |
 | Python 版本 | 通过 | Python 3.14.6 |
-| 单元/API/契约测试 | 通过 | 49 passed（1 条第三方弃用警告） |
+| 单元/API/契约测试 | 通过 | 54 passed（1 条第三方弃用警告） |
 | 编译检查 | 通过 | `compileall` 退出码 0 |
 | 静态检查 | 通过 | `ruff check .`：All checks passed |
 
