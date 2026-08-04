@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Discovery Experience Foundation：内容宇宙、World/Personal Stream 隔离、兴趣、透明推荐说明、Following、价值反馈、人工精选与开发者沟通网关。
+
 ## [0.9.5] - 2026-08-04
 
 ### Added

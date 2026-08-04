@@ -35,6 +35,7 @@ Intelligent Discovery 是一个长期演进的开放式工程，而不是自动�
 - [沟通智能基础](docs/COMMUNICATION_INTELLIGENCE.md)：私有沟通、反馈处理、受控求助和 AI 解释边界。
 - [Beta 体验智能](docs/BETA_EXPERIENCE_INTELLIGENCE.md)：隐私优先的体验信号、反馈闭环与受控进化。
 - [世界智能获取基础](docs/WORLD_INTELLIGENCE.md)：公共来源、候选事件、新鲜度、趋势与可信 Feed 输入边界。
+- [发现体验基础](docs/DISCOVERY_EXPERIENCE.md)：内容宇宙、世界/个人发现隔离、兴趣与透明推荐边界。
 - [贡献指南](CONTRIBUTING.md)：本地开发、PR 与模块接入规范。
 
 ## 快速开始
