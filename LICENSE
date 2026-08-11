@@ -79,11 +79,12 @@
       by such Contributor that are necessarily infringed by their
       Contribution(s) alone or by combination of their Contribution(s)
       with the Work to which such Contribution(s) was submitted. If You
-      institute patent litigation against any entity alleging that the Work
-      or a Contribution incorporated within the Work constitutes direct or
-      contributory patent infringement, then any patent licenses granted to
-      You under this License for that Work shall terminate as of the date
-      such litigation is filed.
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
 
    4. Redistribution. You may reproduce and distribute copies of the Work
       or Derivative Works thereof in any medium, with or without
@@ -96,9 +97,11 @@
       (b) You must cause any modified files to carry prominent notices
           stating that You changed the files; and
 
-      (c) You must retain, in the Source form of any Derivative Works that
-          You distribute, all copyright, patent, trademark, and attribution
-          notices from the Source form of the Work; and
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
 
       (d) If the Work includes a "NOTICE" text file as part of its
           distribution, then any Derivative Works that You distribute must
@@ -176,14 +179,14 @@
 
       To apply the Apache License to your work, attach the following
       boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include the
-      brackets!)  The text should be enclosed in the appropriate comment
-      syntax for the file format. We also recommend that a file or class name
-      and description of purpose be included on the same "printed page" as
-      the copyright notice for easier identification within third-party
-      archives.
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
 
-   Copyright 2026 Intelligent Discovery Contributors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
