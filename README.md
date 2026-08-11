@@ -4,6 +4,8 @@
 
 Intelligent Discovery 是一个长期演进的开放式工程，而不是自动替用户决策的黑箱。每个结论应能回溯到资料来源、置信度和仍然未知的问题。
 
+本项目采用 [Apache License 2.0](LICENSE)。
+
 ## 当前能力（v0.9.1 Beta Preparation）
 
 实现了可追溯的「发现—研究—分析—报告」闭环：
